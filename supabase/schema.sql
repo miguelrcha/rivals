@@ -1,0 +1,585 @@
+-- Run this once in the Supabase SQL editor (Project > SQL Editor > New query).
+-- Safe to re-run: every statement is idempotent.
+
+-- ============ profiles ============
+-- One row per auth.users row, created automatically on sign up.
+
+create table if not exists public.profiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  username text unique not null,
+  display_name text not null,
+  gender text,
+  avatar_color text not null default '#f5de1b',
+  avatar_initial text not null default 'R',
+  flag text,
+  tagline text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.profiles enable row level security;
+
+drop policy if exists "Profiles are viewable by everyone" on public.profiles;
+create policy "Profiles are viewable by everyone"
+  on public.profiles for select
+  using (true);
+
+drop policy if exists "Users can update their own profile" on public.profiles;
+create policy "Users can update their own profile"
+  on public.profiles for update
+  using (auth.uid() = id);
+
+-- Auto-create a profile row whenever someone signs up.
+-- Reads username/display_name/gender from the metadata passed to
+-- supabase.auth.signUp({ options: { data: { username, ... } } }).
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  insert into public.profiles (id, username, display_name, gender, flag, avatar_initial)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data ->> 'username', split_part(new.email, '@', 1)),
+    coalesce(new.raw_user_meta_data ->> 'username', split_part(new.email, '@', 1)),
+    new.raw_user_meta_data ->> 'gender',
+    nullif(new.raw_user_meta_data ->> 'flag', ''),
+    upper(left(coalesce(new.raw_user_meta_data ->> 'username', new.email), 1))
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- Lets the sign-in form accept a username instead of an email, without
+-- exposing the profiles table's underlying emails to anyone.
+create or replace function public.email_for_username(lookup_username text)
+returns text
+language sql
+security definer set search_path = public
+stable
+as $$
+  select u.email
+  from auth.users u
+  join public.profiles p on p.id = u.id
+  where p.username = lookup_username
+  limit 1;
+$$;
+
+grant execute on function public.email_for_username(text) to anon, authenticated;
+
+-- ============ games ============
+
+create table if not exists public.games (
+  id uuid primary key default gen_random_uuid(),
+  slug text unique not null,
+  name text not null,
+  short_name text not null,
+  color text not null,
+  platform text not null,
+  description text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.games enable row level security;
+
+drop policy if exists "Games are viewable by everyone" on public.games;
+create policy "Games are viewable by everyone"
+  on public.games for select
+  using (true);
+
+-- ============ categories ============
+
+create table if not exists public.categories (
+  id uuid primary key default gen_random_uuid(),
+  game_id uuid not null references public.games (id) on delete cascade,
+  name text not null,
+  created_at timestamptz not null default now(),
+  unique (game_id, name)
+);
+
+alter table public.categories enable row level security;
+
+drop policy if exists "Categories are viewable by everyone" on public.categories;
+create policy "Categories are viewable by everyone"
+  on public.categories for select
+  using (true);
+
+-- ============ runs ============
+
+create table if not exists public.runs (
+  id uuid primary key default gen_random_uuid(),
+  runner_id uuid not null references public.profiles (id) on delete cascade,
+  game_id uuid not null references public.games (id) on delete cascade,
+  category_id uuid references public.categories (id) on delete set null,
+  time_seconds numeric not null,
+  place integer,
+  tag text,
+  video_url text,
+  verified boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+alter table public.runs enable row level security;
+
+drop policy if exists "Runs are viewable by everyone" on public.runs;
+create policy "Runs are viewable by everyone"
+  on public.runs for select
+  using (true);
+
+drop policy if exists "Users can log their own runs" on public.runs;
+create policy "Users can log their own runs"
+  on public.runs for insert
+  with check (auth.uid() = runner_id);
+
+drop policy if exists "Users can edit their own runs" on public.runs;
+create policy "Users can edit their own runs"
+  on public.runs for update
+  using (auth.uid() = runner_id);
+
+drop policy if exists "Users can delete their own runs" on public.runs;
+create policy "Users can delete their own runs"
+  on public.runs for delete
+  using (auth.uid() = runner_id);
+
+-- ============ seed games ============
+-- Matches src/lib/games.ts so real data lines up with the mock UI.
+
+insert into public.games (slug, name, short_name, color, platform, description)
+values
+  ('pokemon-red', 'Pokémon Red', 'RED', '#c0392b', 'Game Boy', 'The one that started the crew''s rivalry.'),
+  ('pokemon-crystal', 'Pokémon Crystal', 'CRY', '#3b8fc4', 'Game Boy Color', 'Johto''s night-and-day gimmick, speedran to death.'),
+  ('pokemon-emerald', 'Pokémon Emerald', 'EMR', '#2e9e5b', 'Game Boy Advance', 'Hoenn''s hardest category, glitchless only.'),
+  ('pokemon-fire-red', 'Pokémon FireRed', 'FR', '#e0703f', 'Game Boy Advance', 'Kanto remake — same route, faster shoes.')
+on conflict (slug) do nothing;
+
+insert into public.categories (game_id, name)
+select id, category
+from public.games
+cross join (values ('Any%'), ('Glitchless')) as c(category)
+on conflict (game_id, name) do nothing;
+
+-- ============================================================
+-- migrations/002_profile_media_and_friends.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+-- on auth.users can — run this on its own, separate from schema.sql.
+
+-- ============ profile photo + banner ============
+
+alter table public.profiles add column if not exists avatar_url text;
+alter table public.profiles add column if not exists banner_url text;
+
+-- Public bucket for avatar/banner uploads. Files are stored under
+-- `{user_id}/avatar-...` and `{user_id}/banner-...` so the policies below
+-- can check the folder name against auth.uid().
+insert into storage.buckets (id, name, public)
+values ('profile-media', 'profile-media', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Profile media is publicly readable" on storage.objects;
+create policy "Profile media is publicly readable"
+  on storage.objects for select
+  using (bucket_id = 'profile-media');
+
+drop policy if exists "Users can upload their own profile media" on storage.objects;
+create policy "Users can upload their own profile media"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'profile-media'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "Users can update their own profile media" on storage.objects;
+create policy "Users can update their own profile media"
+  on storage.objects for update
+  using (
+    bucket_id = 'profile-media'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "Users can delete their own profile media" on storage.objects;
+create policy "Users can delete their own profile media"
+  on storage.objects for delete
+  using (
+    bucket_id = 'profile-media'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- ============ friend requests ============
+-- No accept/decline UI yet — this just lets "Add Friend" send a request
+-- and remembers it so the button doesn't re-send on every visit.
+
+create table if not exists public.friend_requests (
+  id uuid primary key default gen_random_uuid(),
+  requester_id uuid not null references public.profiles (id) on delete cascade,
+  addressee_id uuid not null references public.profiles (id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'declined')),
+  created_at timestamptz not null default now(),
+  unique (requester_id, addressee_id)
+);
+
+alter table public.friend_requests enable row level security;
+
+drop policy if exists "Users can view requests involving them" on public.friend_requests;
+create policy "Users can view requests involving them"
+  on public.friend_requests for select
+  using (auth.uid() = requester_id or auth.uid() = addressee_id);
+
+drop policy if exists "Users can send friend requests" on public.friend_requests;
+create policy "Users can send friend requests"
+  on public.friend_requests for insert
+  with check (auth.uid() = requester_id and requester_id <> addressee_id);
+
+drop policy if exists "Addressee can update request status" on public.friend_requests;
+create policy "Addressee can update request status"
+  on public.friend_requests for update
+  using (auth.uid() = addressee_id);
+
+-- (migrations/003_wishlist.sql created wishlist_groups/wishlist_items here.
+-- Superseded and dropped by migrations/008_challenges.sql, below.)
+
+-- ============================================================
+-- migrations/004_friend_requests_delete.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+
+drop policy if exists "Users can delete requests involving them" on public.friend_requests;
+create policy "Users can delete requests involving them"
+  on public.friend_requests for delete
+  using (auth.uid() = requester_id or auth.uid() = addressee_id);
+
+-- ============================================================
+-- migrations/007_active_game.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+
+-- Lets a user mark which game they're currently playing/racing. Shown next
+-- to their name in the sidebar. No new policy needed — the existing
+-- "Users can update their own profile" policy already covers this column.
+
+alter table public.profiles add column if not exists active_game_slug text;
+
+-- ============================================================
+-- migrations/008_challenges.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+
+drop table if exists public.wishlist_items;
+drop table if exists public.wishlist_groups;
+
+-- ============ challenge groups ============
+
+create table if not exists public.challenge_groups (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references public.profiles (id) on delete cascade,
+  name text not null,
+  invite_code text not null unique
+    default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6)),
+  created_at timestamptz not null default now()
+);
+
+-- ============ challenge group members ============
+-- Created here, ahead of the challenge_groups policies below, because those
+-- policies reference this table — CREATE POLICY resolves table references
+-- immediately, so it must already exist.
+
+create table if not exists public.challenge_group_members (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid not null references public.challenge_groups (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  joined_at timestamptz not null default now(),
+  unique (group_id, user_id)
+);
+
+alter table public.challenge_groups enable row level security;
+
+drop policy if exists "Members can view their challenge groups" on public.challenge_groups;
+create policy "Members can view their challenge groups"
+  on public.challenge_groups for select
+  using (
+    auth.uid() = owner_id
+    or exists (
+      select 1 from public.challenge_group_members m
+      where m.group_id = challenge_groups.id and m.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Users can create challenge groups" on public.challenge_groups;
+create policy "Users can create challenge groups"
+  on public.challenge_groups for insert
+  with check (auth.uid() = owner_id);
+
+drop policy if exists "Owners can rename their challenge groups" on public.challenge_groups;
+create policy "Owners can rename their challenge groups"
+  on public.challenge_groups for update
+  using (auth.uid() = owner_id);
+
+drop policy if exists "Owners can delete their challenge groups" on public.challenge_groups;
+create policy "Owners can delete their challenge groups"
+  on public.challenge_groups for delete
+  using (auth.uid() = owner_id);
+
+-- ============ challenge group members policies ============
+-- (table itself created earlier, ahead of the challenge_groups policies)
+
+alter table public.challenge_group_members enable row level security;
+
+drop policy if exists "Members can view their group roster" on public.challenge_group_members;
+create policy "Members can view their group roster"
+  on public.challenge_group_members for select
+  using (
+    exists (
+      select 1 from public.challenge_group_members m
+      where m.group_id = challenge_group_members.group_id and m.user_id = auth.uid()
+    )
+  );
+
+-- Direct inserts only cover an owner adding themselves right after creating
+-- a group. Inviting someone else or joining by code goes through the
+-- security-definer functions below, which run their own checks.
+drop policy if exists "Owners can add themselves to their groups" on public.challenge_group_members;
+create policy "Owners can add themselves to their groups"
+  on public.challenge_group_members for insert
+  with check (
+    auth.uid() = user_id
+    and exists (
+      select 1 from public.challenge_groups g
+      where g.id = group_id and g.owner_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Members can leave or be removed by the owner" on public.challenge_group_members;
+create policy "Members can leave or be removed by the owner"
+  on public.challenge_group_members for delete
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from public.challenge_groups g
+      where g.id = group_id and g.owner_id = auth.uid()
+    )
+  );
+
+-- ============ challenge items (the queue of games) ============
+-- game_slug matches src/lib/games.ts, not a foreign key — same reasoning as
+-- the wishlist it replaces.
+
+create table if not exists public.challenge_items (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid not null references public.challenge_groups (id) on delete cascade,
+  game_slug text not null,
+  position integer not null default 0,
+  status text not null default 'queued' check (status in ('queued', 'current', 'done')),
+  added_by uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (group_id, game_slug)
+);
+
+alter table public.challenge_items enable row level security;
+
+drop policy if exists "Members can view their group's queue" on public.challenge_items;
+create policy "Members can view their group's queue"
+  on public.challenge_items for select
+  using (
+    exists (
+      select 1 from public.challenge_group_members m
+      where m.group_id = challenge_items.group_id and m.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Members can add games to the queue" on public.challenge_items;
+create policy "Members can add games to the queue"
+  on public.challenge_items for insert
+  with check (
+    added_by = auth.uid()
+    and exists (
+      select 1 from public.challenge_group_members m
+      where m.group_id = challenge_items.group_id and m.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Members can update their group's queue" on public.challenge_items;
+create policy "Members can update their group's queue"
+  on public.challenge_items for update
+  using (
+    exists (
+      select 1 from public.challenge_group_members m
+      where m.group_id = challenge_items.group_id and m.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Members can remove games from the queue" on public.challenge_items;
+create policy "Members can remove games from the queue"
+  on public.challenge_items for delete
+  using (
+    exists (
+      select 1 from public.challenge_group_members m
+      where m.group_id = challenge_items.group_id and m.user_id = auth.uid()
+    )
+  );
+
+-- ============ functions ============
+
+-- Joining by code needs to look up a group the caller isn't a member of yet
+-- (RLS above would hide it), so it runs as security definer instead.
+create or replace function public.join_challenge_group(p_invite_code text)
+returns uuid
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_group_id uuid;
+begin
+  select id into v_group_id
+  from public.challenge_groups
+  where invite_code = upper(trim(p_invite_code));
+
+  if v_group_id is null then
+    raise exception 'Invalid invite code';
+  end if;
+
+  insert into public.challenge_group_members (group_id, user_id)
+  values (v_group_id, auth.uid())
+  on conflict (group_id, user_id) do nothing;
+
+  return v_group_id;
+end;
+$$;
+
+grant execute on function public.join_challenge_group(text) to authenticated;
+
+-- Lets any member invite one of their accepted friends straight into the
+-- group, without the friend needing to accept a separate invite.
+create or replace function public.invite_challenge_group_member(p_group_id uuid, p_friend_id uuid)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if not exists (
+    select 1 from public.challenge_group_members
+    where group_id = p_group_id and user_id = auth.uid()
+  ) then
+    raise exception 'Not a member of this group';
+  end if;
+
+  if not exists (
+    select 1 from public.friend_requests
+    where status = 'accepted'
+      and ((requester_id = auth.uid() and addressee_id = p_friend_id)
+        or (requester_id = p_friend_id and addressee_id = auth.uid()))
+  ) then
+    raise exception 'Not friends with that user';
+  end if;
+
+  insert into public.challenge_group_members (group_id, user_id)
+  values (p_group_id, p_friend_id)
+  on conflict (group_id, user_id) do nothing;
+end;
+$$;
+
+grant execute on function public.invite_challenge_group_member(uuid, uuid) to authenticated;
+
+-- Atomically moves the group's "now playing" marker to a different item, so
+-- there's never more than one current game in a queue.
+create or replace function public.set_current_challenge_item(p_group_id uuid, p_item_id uuid)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if not exists (
+    select 1 from public.challenge_group_members
+    where group_id = p_group_id and user_id = auth.uid()
+  ) then
+    raise exception 'Not a member of this group';
+  end if;
+
+  update public.challenge_items
+    set status = 'queued'
+    where group_id = p_group_id and status = 'current';
+
+  update public.challenge_items
+    set status = 'current'
+    where id = p_item_id and group_id = p_group_id;
+end;
+$$;
+
+grant execute on function public.set_current_challenge_item(uuid, uuid) to authenticated;
+
+-- ============================================================
+-- migrations/009_game_roms.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+
+create table if not exists public.game_roms (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  game_slug text not null,
+  rom_path text not null,
+  rom_filename text not null,
+  created_at timestamptz not null default now(),
+  unique (user_id, game_slug)
+);
+
+alter table public.game_roms enable row level security;
+
+drop policy if exists "Users can view their own ROMs" on public.game_roms;
+create policy "Users can view their own ROMs"
+  on public.game_roms for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users can add their own ROMs" on public.game_roms;
+create policy "Users can add their own ROMs"
+  on public.game_roms for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update their own ROMs" on public.game_roms;
+create policy "Users can update their own ROMs"
+  on public.game_roms for update
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users can delete their own ROMs" on public.game_roms;
+create policy "Users can delete their own ROMs"
+  on public.game_roms for delete
+  using (auth.uid() = user_id);
+
+insert into storage.buckets (id, name, public)
+values ('game-roms', 'game-roms', false)
+on conflict (id) do nothing;
+
+drop policy if exists "Users can access their own ROM files" on storage.objects;
+create policy "Users can access their own ROM files"
+  on storage.objects for select
+  using (
+    bucket_id = 'game-roms'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "Users can upload their own ROM files" on storage.objects;
+create policy "Users can upload their own ROM files"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'game-roms'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "Users can update their own ROM files" on storage.objects;
+create policy "Users can update their own ROM files"
+  on storage.objects for update
+  using (
+    bucket_id = 'game-roms'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "Users can delete their own ROM files" on storage.objects;
+create policy "Users can delete their own ROM files"
+  on storage.objects for delete
+  using (
+    bucket_id = 'game-roms'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );

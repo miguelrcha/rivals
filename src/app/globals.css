@@ -1,0 +1,65 @@
+@import url("https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Space+Mono:wght@400;700&display=swap");
+
+:root {
+  --yellow: #f5de1b;
+  --yellow-deep: #e8c800;
+  --ink: #0e0e0e;
+  --cyan: #6ff3ff;
+  --paper: #fff9db;
+
+  --charcoal: #1c1c1e;
+  --charcoal-deep: #0f0f10;
+  --charcoal-line: #3a3a3e;
+  --fog: #c9c9cd;
+
+  --font-pixel: "Silkscreen", "Courier New", monospace;
+  --font-mono: "Space Mono", "Courier New", monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--yellow);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--ink);
+  color: var(--yellow);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
