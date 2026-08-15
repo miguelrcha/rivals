@@ -1188,3 +1188,14 @@ from (values
 ) as c(slug, name)
 join public.games g on g.slug = c.slug
 on conflict (game_id, name) do nothing;
+
+-- ============================================================
+-- migrations/024_run_completion.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+
+alter table public.runs add column if not exists cleared boolean;
+alter table public.runs add column if not exists completed_at timestamptz;
+
+alter table public.profiles
+  add column if not exists active_game_run_id uuid references public.runs (id) on delete set null;

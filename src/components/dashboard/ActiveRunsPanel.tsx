@@ -5,9 +5,13 @@ import Link from "next/link";
 import { formatElapsed, isOnline } from "@/lib/format";
 import { PokemonTeam } from "@/components/PokemonTeam";
 import { StatusDot } from "@/components/StatusDot";
+import { EditRunButton } from "@/components/dashboard/EditRunButton";
+import { SyncSaveButton } from "@/components/dashboard/SyncSaveButton";
 import type { PartyPokemon } from "@/lib/pokemon-saves/firered";
 
 type Runner = {
+  id: string;
+  runId: string | null;
   username: string;
   displayName: string;
   avatarColor: string;
@@ -24,9 +28,17 @@ type Runner = {
 
 type Props = {
   runners: Runner[];
+  currentUserId: string | null;
+  gameName: string;
+  slug: string;
 };
 
-export function ActiveRunsPanel({ runners }: Props) {
+export function ActiveRunsPanel({
+  runners,
+  currentUserId,
+  gameName,
+  slug,
+}: Props) {
   const [teamPopupUsername, setTeamPopupUsername] = useState<string | null>(
     null,
   );
@@ -105,14 +117,33 @@ export function ActiveRunsPanel({ runners }: Props) {
                 </p>
               )}
 
-              {runner.party.length > 0 && (
-                <button
-                  type="button"
-                  className="active-runs__team-btn"
-                  onClick={() => setTeamPopupUsername(runner.username)}
-                >
-                  View team
-                </button>
+              {(runner.party.length > 0 || runner.id === currentUserId) && (
+                <div className="active-runs__actions">
+                  {runner.party.length > 0 && (
+                    <button
+                      type="button"
+                      className="active-runs__team-btn"
+                      onClick={() => setTeamPopupUsername(runner.username)}
+                    >
+                      View team
+                    </button>
+                  )}
+
+                  {runner.id === currentUserId && (
+                    <>
+                      <SyncSaveButton
+                        slug={slug}
+                        userId={currentUserId}
+                        syncCount={runner.syncCount}
+                      />
+                      <EditRunButton
+                        userId={currentUserId}
+                        runId={runner.runId}
+                        gameName={gameName}
+                      />
+                    </>
+                  )}
+                </div>
               )}
             </div>
           ))}

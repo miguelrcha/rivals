@@ -3888,6 +3888,13 @@ a.dashboard-panel__title:hover {
   color: var(--yellow);
 }
 
+.active-runs__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .active-runs__team-btn {
   margin-top: 8px;
   font-family: var(--font-mono);
@@ -3903,6 +3910,32 @@ a.dashboard-panel__title:hover {
 .active-runs__team-btn:hover {
   border-color: var(--yellow);
   color: var(--yellow);
+}
+
+.active-runs__actions .active-runs__team-btn {
+  margin-top: 0;
+}
+
+.edit-run-modal__delete {
+  margin-top: 16px;
+  width: 100%;
+  padding: 10px 16px;
+  background: none;
+  border: 1px solid var(--charcoal-line);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fog);
+  cursor: pointer;
+  transition: border-color 120ms steps(3), color 120ms steps(3);
+}
+
+.edit-run-modal__delete:hover {
+  border-color: #e07b7b;
+  color: #e07b7b;
+}
+
+.edit-run-modal__delete:disabled {
+  opacity: 0.6;
 }
 
 .active-runs__avatar {

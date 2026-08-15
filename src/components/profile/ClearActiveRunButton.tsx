@@ -17,6 +17,7 @@ export function ClearActiveRunButton({ userId }: { userId: string }) {
       .from("profiles")
       .update({
         active_game_slug: null,
+        active_game_run_id: null,
         active_game_started_at: null,
         active_game_progress: 0,
         active_game_sync_count: 0,

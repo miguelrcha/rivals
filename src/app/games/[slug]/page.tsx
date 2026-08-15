@@ -90,12 +90,14 @@ export default async function GamePage({ params }: Props) {
   const { data: activeRunnerRows } = await supabase
     .from("profiles")
     .select(
-      "username, display_name, avatar_color, avatar_initial, avatar_url, last_active_at, active_game_progress, active_game_badges, active_game_pokedex_caught, active_game_playtime_seconds, active_game_sync_count, active_game_party",
+      "id, username, display_name, avatar_color, avatar_initial, avatar_url, last_active_at, active_game_progress, active_game_badges, active_game_pokedex_caught, active_game_playtime_seconds, active_game_sync_count, active_game_party, active_game_run_id",
     )
     .eq("active_game_slug", game.slug)
     .order("active_game_playtime_seconds", { ascending: false });
 
   const activeRunners = (activeRunnerRows ?? []).map((row) => ({
+    id: row.id as string,
+    runId: row.active_game_run_id as string | null,
     username: row.username as string,
     displayName: row.display_name as string,
     avatarColor: row.avatar_color as string,
@@ -214,7 +216,12 @@ export default async function GamePage({ params }: Props) {
         currentUserProfile={currentUserProfile}
       >
         <div className="dashboard-columns">
-          <ActiveRunsPanel runners={activeRunners} />
+          <ActiveRunsPanel
+            runners={activeRunners}
+            currentUserId={user?.id ?? null}
+            gameName={game.name}
+            slug={game.slug}
+          />
 
           <div className="dashboard-panel game-stats-panel">
             <div className="dashboard-panel__header">

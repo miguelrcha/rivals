@@ -279,10 +279,26 @@ export function SetActiveGameButton({
         if (romError) throw romError;
       }
 
+      let runId: string | null = null;
+      if (gameId) {
+        const { data: run, error: runError } = await supabase
+          .from("runs")
+          .insert({
+            runner_id: user.id,
+            game_id: gameId,
+            started_at: startedAt,
+          })
+          .select("id")
+          .single();
+        if (runError) throw runError;
+        runId = run.id;
+      }
+
       const { error: updateError } = await supabase
         .from("profiles")
         .update({
           active_game_slug: slug,
+          active_game_run_id: runId,
           active_game_started_at: startedAt,
           active_game_progress: 0,
           active_game_sync_count: 0,
@@ -295,15 +311,6 @@ export function SetActiveGameButton({
         })
         .eq("id", user.id);
       if (updateError) throw updateError;
-
-      if (gameId) {
-        const { error: runError } = await supabase.from("runs").insert({
-          runner_id: user.id,
-          game_id: gameId,
-          started_at: startedAt,
-        });
-        if (runError) throw runError;
-      }
 
       setIsOpen(false);
       setRomFile(null);
