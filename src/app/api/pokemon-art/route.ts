@@ -3,7 +3,7 @@ import { getPokemonArtworkUrl } from "@/lib/pokeapi";
 import { GAME_MASCOTS } from "@/lib/pokemon-mascots";
 
 export const dynamic = "force-static";
-export const revalidate = 60 * 60 * 24;
+export const revalidate = 86400;
 
 export async function GET() {
   const uniqueNames = Array.from(new Set(Object.values(GAME_MASCOTS)));
