@@ -54,13 +54,22 @@ export function EditProfileModal({
     setBannerPreview(URL.createObjectURL(file));
   }
 
+  function handleRemoveBanner() {
+    setBannerFile(null);
+    setBannerPreview(null);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSaving(true);
     setError("");
 
     const supabase = createClient();
-    const updates: { tagline: string; avatar_url?: string; banner_url?: string } =
+    const updates: {
+      tagline: string;
+      avatar_url?: string;
+      banner_url?: string | null;
+    } =
       { tagline: bio.trim() };
 
     try {
@@ -90,6 +99,9 @@ export function EditProfileModal({
           .from("profile-media")
           .getPublicUrl(path);
         updates.banner_url = data.publicUrl;
+      } else if (bannerUrl && !bannerPreview) {
+        // User clicked the trash icon to clear their banner.
+        updates.banner_url = null;
       }
 
       const { error: updateError } = await supabase
@@ -157,6 +169,18 @@ export function EditProfileModal({
                     hidden
                   />
                 </label>
+
+                {bannerPreview && (
+                  <button
+                    type="button"
+                    className="edit-profile-form__banner-remove"
+                    onClick={handleRemoveBanner}
+                    aria-label="Remove banner"
+                    title="Remove banner"
+                  >
+                    🗑
+                  </button>
+                )}
               </div>
 
               <div className="edit-profile-form__avatar-row">

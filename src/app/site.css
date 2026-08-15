@@ -842,11 +842,26 @@
 .dashboard-banner {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 24px;
   min-height: 220px;
   padding: 32px 40px;
   background: var(--charcoal-deep);
   border: 3px solid var(--charcoal-line);
+}
+
+.dashboard-banner__photo {
+  position: relative;
+  flex-shrink: 0;
+  width: 260px;
+  height: 140px;
+  border: 3px solid var(--ink);
+  overflow: hidden;
+}
+
+.dashboard-banner__photo-img {
+  object-fit: cover;
+  object-position: center;
 }
 
 .dashboard-banner__content {
@@ -1918,7 +1933,27 @@
   display: flex;
   align-items: flex-end;
   justify-content: flex-start;
+  gap: 10px;
   padding: 10px;
+}
+
+.edit-profile-form__banner-remove {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 15, 16, 0.75);
+  border: 2px solid var(--paper);
+  color: var(--paper);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.edit-profile-form__banner-remove:hover {
+  border-color: var(--yellow);
+  color: var(--yellow);
 }
 
 .edit-profile-form__avatar-row {

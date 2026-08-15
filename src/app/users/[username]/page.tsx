@@ -161,7 +161,7 @@ export default async function UserProfilePage({ params }: Props) {
 
       <nav className="game-tabs" aria-label="Profile sections">
         <span className="game-tabs__item game-tabs__item--active">
-          Full game runs
+          Runs
         </span>
         <span className="game-tabs__item">Level runs</span>
         <span className="game-tabs__item">Threads</span>
@@ -174,7 +174,7 @@ export default async function UserProfilePage({ params }: Props) {
       <div className="dashboard-columns">
         <div className="dashboard-panel">
           <div className="dashboard-panel__header">
-            <span className="dashboard-panel__title">FULL GAME RUNS</span>
+            <span className="dashboard-panel__title">RUNS</span>
           </div>
 
           {activeGame ? (
@@ -240,8 +240,7 @@ export default async function UserProfilePage({ params }: Props) {
             <div className="profile-empty">
               <p className="profile-empty__title">NO RUNS</p>
               <p className="profile-empty__body">
-                {profile.display_name} doesn&apos;t have any full game runs
-                logged yet.
+                {profile.display_name} doesn&apos;t have any runs logged yet.
               </p>
             </div>
           )}
