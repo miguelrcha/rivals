@@ -583,3 +583,34 @@ create policy "Users can delete their own ROM files"
     bucket_id = 'game-roms'
     and (storage.foldername(name))[1] = auth.uid()::text
   );
+
+-- ============================================================
+-- migrations/010_active_runs.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+
+alter table public.profiles add column if not exists active_game_started_at timestamptz;
+
+alter table public.profiles add column if not exists active_game_progress smallint not null default 0;
+
+alter table public.profiles drop constraint if exists profiles_active_game_progress_check;
+alter table public.profiles add constraint profiles_active_game_progress_check
+  check (active_game_progress between 0 and 100);
+
+-- ============================================================
+-- migrations/011_active_run_sync_count.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+
+alter table public.profiles add column if not exists active_game_sync_count smallint not null default 0;
+
+-- ============================================================
+-- migrations/012_active_run_save_stats.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+
+alter table public.profiles add column if not exists active_game_badges smallint not null default 0;
+
+alter table public.profiles add column if not exists active_game_pokedex_caught smallint not null default 0;
+
+alter table public.profiles add column if not exists active_game_playtime_seconds integer not null default 0;

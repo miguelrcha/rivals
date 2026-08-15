@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { SupporterBanner } from "@/components/dashboard/SupporterBanner";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { AddFriendButton } from "@/components/profile/AddFriendButton";
+import { ActiveRunElapsed } from "@/components/profile/ActiveRunElapsed";
+import { ClearActiveRunButton } from "@/components/profile/ClearActiveRunButton";
 import { createClient } from "@/lib/supabase/server";
+import { getGameBySlug } from "@/lib/games";
 
 type Props = { params: Promise<{ username: string }> };
 
@@ -70,6 +74,10 @@ export default async function UserProfilePage({ params }: Props) {
     day: "numeric",
     year: "numeric",
   });
+
+  const activeGame = profile.active_game_slug
+    ? getGameBySlug(profile.active_game_slug)
+    : null;
 
   return (
     <>
@@ -191,6 +199,45 @@ export default async function UserProfilePage({ params }: Props) {
               <div className="profile-about__label">Runs</div>
               <div className="profile-about__value">{runsCount ?? 0}</div>
             </div>
+            {activeGame && (
+              <>
+                <div className="profile-about__item">
+                  <div className="profile-about__label">Racing</div>
+                  <div className="profile-about__value">
+                    <Link href={`/games/${activeGame.slug}`}>
+                      {activeGame.name}
+                    </Link>
+                    {isOwnProfile && (
+                      <ClearActiveRunButton userId={profile.id} />
+                    )}
+                  </div>
+                </div>
+                <div className="profile-about__item">
+                  <div className="profile-about__label">Elapsed</div>
+                  <div className="profile-about__value">
+                    {profile.active_game_started_at && (
+                      <ActiveRunElapsed
+                        startedAt={profile.active_game_started_at}
+                      />
+                    )}
+                  </div>
+                </div>
+                <div className="profile-about__item">
+                  <div className="profile-about__label">Progress</div>
+                  <div className="profile-about__value">
+                    {profile.active_game_progress ?? 0}%
+                  </div>
+                </div>
+                {(profile.active_game_sync_count ?? 0) > 0 && (
+                  <div className="profile-about__item">
+                    <div className="profile-about__label">Saves synced</div>
+                    <div className="profile-about__value">
+                      {profile.active_game_sync_count}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>

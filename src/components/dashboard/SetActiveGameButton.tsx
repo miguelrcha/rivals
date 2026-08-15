@@ -1,25 +1,123 @@
 "use client";
 
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import {
+  parseFireRedSave,
+  type FireRedSaveStats,
+} from "@/lib/pokemon-saves/firered";
+import { formatElapsed } from "@/lib/format";
+
+// Per-game .sav parsers. Each Pokémon game generation uses a different save
+// format, so this grows one entry at a time — FireRed/LeafGreen first since
+// Gen III saves are unencrypted and fully reverse-engineered.
+const SAVE_PARSERS: Partial<
+  Record<string, (buffer: ArrayBuffer) => FireRedSaveStats | null>
+> = {
+  "pokemon-fire-red": parseFireRedSave,
+  "pokemon-leaf-green": parseFireRedSave,
+};
 
 export function SetActiveGameButton({
   slug,
   name,
   isActive,
   existingRomFilename,
+  initialProgress,
+  initialSyncCount,
 }: {
   slug: string;
   name: string;
   isActive: boolean;
   existingRomFilename: string | null;
+  initialProgress: number;
+  initialSyncCount: number;
 }) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [romFile, setRomFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+  const [progress, setProgress] = useState(initialProgress);
+  const progressSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const [syncStats, setSyncStats] = useState<FireRedSaveStats | null>(null);
+  const [syncError, setSyncError] = useState("");
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncCount, setSyncCount] = useState(initialSyncCount);
+  const saveParser = SAVE_PARSERS[slug];
+
+  async function handleSaveFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !saveParser) return;
+
+    setIsSyncing(true);
+    setSyncError("");
+    setSyncStats(null);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const stats = saveParser(buffer);
+
+      if (!stats) {
+        throw new Error(
+          "Couldn't read that save file — make sure it's a real .sav for this game.",
+        );
+      }
+
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("You need to be signed in to do that.");
+
+      const nextSyncCount = syncCount + 1;
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          active_game_progress: stats.progress,
+          active_game_sync_count: nextSyncCount,
+          active_game_badges: stats.badgeCount,
+          active_game_pokedex_caught: stats.pokedexOwned,
+          active_game_playtime_seconds: stats.playTimeSeconds,
+        })
+        .eq("id", user.id);
+      if (updateError) throw updateError;
+
+      setProgress(stats.progress);
+      setSyncStats(stats);
+      setSyncCount(nextSyncCount);
+      router.refresh();
+    } catch (err) {
+      setSyncError(
+        err instanceof Error
+          ? err.message
+          : "Couldn't read that save file — try again.",
+      );
+    } finally {
+      setIsSyncing(false);
+    }
+  }
+
+  function handleProgressChange(event: ChangeEvent<HTMLInputElement>) {
+    const value = Number(event.target.value);
+    setProgress(value);
+
+    if (progressSaveTimeout.current) {
+      clearTimeout(progressSaveTimeout.current);
+    }
+    progressSaveTimeout.current = setTimeout(async () => {
+      const supabase = createClient();
+      await supabase
+        .from("profiles")
+        .update({ active_game_progress: value })
+        .eq("id", (await supabase.auth.getUser()).data.user?.id ?? "");
+      router.refresh();
+    }, 400);
+  }
 
   function openModal() {
     setRomFile(null);
@@ -75,12 +173,22 @@ export function SetActiveGameButton({
 
       const { error: updateError } = await supabase
         .from("profiles")
-        .update({ active_game_slug: slug })
+        .update({
+          active_game_slug: slug,
+          active_game_started_at: new Date().toISOString(),
+          active_game_progress: 0,
+          active_game_sync_count: 0,
+          active_game_badges: 0,
+          active_game_pokedex_caught: 0,
+          active_game_playtime_seconds: 0,
+        })
         .eq("id", user.id);
       if (updateError) throw updateError;
 
       setIsOpen(false);
       setRomFile(null);
+      setSyncCount(0);
+      setSyncStats(null);
       router.refresh();
     } catch (err) {
       setError(
@@ -107,10 +215,20 @@ export function SetActiveGameButton({
 
       const { error: updateError } = await supabase
         .from("profiles")
-        .update({ active_game_slug: null })
+        .update({
+          active_game_slug: null,
+          active_game_started_at: null,
+          active_game_progress: 0,
+          active_game_sync_count: 0,
+          active_game_badges: 0,
+          active_game_pokedex_caught: 0,
+          active_game_playtime_seconds: 0,
+        })
         .eq("id", user.id);
       if (updateError) throw updateError;
 
+      setSyncCount(0);
+      setSyncStats(null);
       router.refresh();
     } catch {
       setError("Couldn't clear that — try again.");
@@ -133,6 +251,53 @@ export function SetActiveGameButton({
           ? "🎮 Active game — clear"
           : `Set ${name} as active game`}
       </button>
+
+      {isActive && (
+        <div className="game-hero__progress">
+          <label htmlFor="active-game-progress">
+            Progress — {progress}%
+          </label>
+          <input
+            id="active-game-progress"
+            type="range"
+            min={0}
+            max={100}
+            value={progress}
+            onChange={handleProgressChange}
+          />
+        </div>
+      )}
+
+      {isActive && saveParser && (
+        <div className="game-hero__sync">
+          <label className="game-hero__sync-upload">
+            {isSyncing ? "Reading save…" : "Sync save file (.sav)"}
+            <input
+              type="file"
+              accept=".sav"
+              onChange={handleSaveFileChange}
+              disabled={isSyncing}
+              hidden
+            />
+          </label>
+
+          {syncError && <p className="import-modal__error">{syncError}</p>}
+
+          {syncStats && (
+            <p className="game-hero__sync-result">
+              Synced: {syncStats.badgeCount}/8 badges · {syncStats.pokedexOwned}
+              /386 caught · {formatElapsed(syncStats.playTimeSeconds * 1000)}{" "}
+              played
+            </p>
+          )}
+
+          {syncCount > 0 && (
+            <p className="game-hero__sync-count">
+              Synced {syncCount} time{syncCount === 1 ? "" : "s"} this run
+            </p>
+          )}
+        </div>
+      )}
 
       {isOpen && (
         <div className="import-modal-overlay" onClick={close}>
