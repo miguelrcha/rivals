@@ -5,10 +5,10 @@ import Link from "next/link";
 import { SupporterBanner } from "@/components/dashboard/SupporterBanner";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { AddFriendButton } from "@/components/profile/AddFriendButton";
-import { ActiveRunElapsed } from "@/components/profile/ActiveRunElapsed";
 import { ClearActiveRunButton } from "@/components/profile/ClearActiveRunButton";
 import { createClient } from "@/lib/supabase/server";
 import { getGameBySlug } from "@/lib/games";
+import { formatElapsed } from "@/lib/format";
 import { GAME_BOXART } from "@/lib/game-boxart";
 
 type Props = { params: Promise<{ username: string }> };
@@ -211,18 +211,18 @@ export default async function UserProfilePage({ params }: Props) {
                 </div>
 
                 <p className="profile-run-card__meta">
-                  ▶ Now playing
-                  {profile.active_game_started_at && (
+                  {(profile.active_game_sync_count ?? 0) > 0 ? (
                     <>
-                      {" · "}
-                      <ActiveRunElapsed
-                        startedAt={profile.active_game_started_at}
-                      />{" "}
-                      elapsed
+                      {profile.active_game_badges ?? 0}/8 badges ·{" "}
+                      {profile.active_game_pokedex_caught ?? 0}/386 caught ·{" "}
+                      {formatElapsed(
+                        (profile.active_game_playtime_seconds ?? 0) * 1000,
+                      )}{" "}
+                      played · Synced {profile.active_game_sync_count}x
                     </>
+                  ) : (
+                    "No save synced yet"
                   )}
-                  {(profile.active_game_sync_count ?? 0) > 0 &&
-                    ` · Synced ${profile.active_game_sync_count}x`}
                 </p>
 
                 <div className="profile-run-card__progress">

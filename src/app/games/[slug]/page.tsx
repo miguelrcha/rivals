@@ -80,6 +80,19 @@ export default async function GamePage({ params }: Props) {
     syncCount: row.active_game_sync_count as number,
   }));
 
+  const { data: gameRow } = await supabase
+    .from("games")
+    .select("id")
+    .eq("slug", game.slug)
+    .maybeSingle();
+
+  const { count: loggedRunsCount } = gameRow
+    ? await supabase
+        .from("runs")
+        .select("*", { count: "exact", head: true })
+        .eq("game_id", gameRow.id)
+    : { count: 0 };
+
   return (
     <>
       <div
@@ -182,11 +195,11 @@ export default async function GamePage({ params }: Props) {
 
           <div className="game-stats">
             <div className="game-stats__item">
-              <div className="game-stats__value">{game.stats.racers}</div>
+              <div className="game-stats__value">{activeRunners.length}</div>
               <div className="game-stats__label">Racers</div>
             </div>
             <div className="game-stats__item">
-              <div className="game-stats__value">{game.stats.runs}</div>
+              <div className="game-stats__value">{loggedRunsCount ?? 0}</div>
               <div className="game-stats__label">Runs</div>
             </div>
             <div className="game-stats__item">
