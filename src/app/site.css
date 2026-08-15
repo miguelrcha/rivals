@@ -1703,6 +1703,84 @@
   color: var(--yellow);
 }
 
+.profile-run-card {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+}
+
+.profile-run-card__thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  color: var(--paper);
+  border: 2px solid var(--charcoal-line);
+  overflow: hidden;
+}
+
+.profile-run-card__art {
+  object-fit: cover;
+}
+
+.profile-run-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-run-card__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.profile-run-card__name {
+  font-family: var(--font-pixel);
+  font-size: 14px;
+  color: var(--paper);
+  text-decoration: none;
+}
+
+.profile-run-card__name:hover {
+  color: var(--yellow);
+}
+
+.profile-run-card__meta {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--yellow);
+}
+
+.profile-run-card__progress {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fog);
+}
+
+.profile-run-card__progress-bar {
+  flex: 1;
+  max-width: 240px;
+  height: 6px;
+  background: var(--charcoal-line);
+  overflow: hidden;
+}
+
+.profile-run-card__progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--yellow);
+}
+
 /* ---- import room modal ---- */
 
 .import-modal-overlay {

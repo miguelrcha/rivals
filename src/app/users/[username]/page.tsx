@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import { SupporterBanner } from "@/components/dashboard/SupporterBanner";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
@@ -8,6 +9,7 @@ import { ActiveRunElapsed } from "@/components/profile/ActiveRunElapsed";
 import { ClearActiveRunButton } from "@/components/profile/ClearActiveRunButton";
 import { createClient } from "@/lib/supabase/server";
 import { getGameBySlug } from "@/lib/games";
+import { GAME_BOXART } from "@/lib/game-boxart";
 
 type Props = { params: Promise<{ username: string }> };
 
@@ -78,6 +80,7 @@ export default async function UserProfilePage({ params }: Props) {
   const activeGame = profile.active_game_slug
     ? getGameBySlug(profile.active_game_slug)
     : null;
+  const activeGameCover = activeGame ? GAME_BOXART[activeGame.slug] : null;
 
   return (
     <>
@@ -174,13 +177,74 @@ export default async function UserProfilePage({ params }: Props) {
             <span className="dashboard-panel__title">FULL GAME RUNS</span>
           </div>
 
-          <div className="profile-empty">
-            <p className="profile-empty__title">NO RUNS</p>
-            <p className="profile-empty__body">
-              {profile.display_name} doesn&apos;t have any full game runs
-              logged yet.
-            </p>
-          </div>
+          {activeGame ? (
+            <div className="profile-run-card">
+              <Link
+                href={`/games/${activeGame.slug}`}
+                className="profile-run-card__thumb"
+                style={{ background: activeGame.color }}
+              >
+                {activeGameCover ? (
+                  <Image
+                    src={activeGameCover}
+                    alt=""
+                    fill
+                    sizes="64px"
+                    className="profile-run-card__art"
+                  />
+                ) : (
+                  <span aria-hidden="true">{activeGame.shortName}</span>
+                )}
+              </Link>
+
+              <div className="profile-run-card__info">
+                <div className="profile-run-card__top">
+                  <Link
+                    href={`/games/${activeGame.slug}`}
+                    className="profile-run-card__name"
+                  >
+                    {activeGame.name}
+                  </Link>
+                  {isOwnProfile && (
+                    <ClearActiveRunButton userId={profile.id} />
+                  )}
+                </div>
+
+                <p className="profile-run-card__meta">
+                  ▶ Now playing
+                  {profile.active_game_started_at && (
+                    <>
+                      {" · "}
+                      <ActiveRunElapsed
+                        startedAt={profile.active_game_started_at}
+                      />{" "}
+                      elapsed
+                    </>
+                  )}
+                  {(profile.active_game_sync_count ?? 0) > 0 &&
+                    ` · Synced ${profile.active_game_sync_count}x`}
+                </p>
+
+                <div className="profile-run-card__progress">
+                  <span className="profile-run-card__progress-bar">
+                    <span
+                      className="profile-run-card__progress-fill"
+                      style={{ width: `${profile.active_game_progress ?? 0}%` }}
+                    />
+                  </span>
+                  {profile.active_game_progress ?? 0}%
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="profile-empty">
+              <p className="profile-empty__title">NO RUNS</p>
+              <p className="profile-empty__body">
+                {profile.display_name} doesn&apos;t have any full game runs
+                logged yet.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="dashboard-panel">
@@ -199,45 +263,6 @@ export default async function UserProfilePage({ params }: Props) {
               <div className="profile-about__label">Runs</div>
               <div className="profile-about__value">{runsCount ?? 0}</div>
             </div>
-            {activeGame && (
-              <>
-                <div className="profile-about__item">
-                  <div className="profile-about__label">Racing</div>
-                  <div className="profile-about__value">
-                    <Link href={`/games/${activeGame.slug}`}>
-                      {activeGame.name}
-                    </Link>
-                    {isOwnProfile && (
-                      <ClearActiveRunButton userId={profile.id} />
-                    )}
-                  </div>
-                </div>
-                <div className="profile-about__item">
-                  <div className="profile-about__label">Elapsed</div>
-                  <div className="profile-about__value">
-                    {profile.active_game_started_at && (
-                      <ActiveRunElapsed
-                        startedAt={profile.active_game_started_at}
-                      />
-                    )}
-                  </div>
-                </div>
-                <div className="profile-about__item">
-                  <div className="profile-about__label">Progress</div>
-                  <div className="profile-about__value">
-                    {profile.active_game_progress ?? 0}%
-                  </div>
-                </div>
-                {(profile.active_game_sync_count ?? 0) > 0 && (
-                  <div className="profile-about__item">
-                    <div className="profile-about__label">Saves synced</div>
-                    <div className="profile-about__value">
-                      {profile.active_game_sync_count}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
           </div>
         </div>
       </div>
