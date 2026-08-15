@@ -2,16 +2,15 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { GAMES } from "@/lib/games";
-import { SupporterBanner } from "./SupporterBanner";
 
 const PLATFORMS = Array.from(new Set(GAMES.map((game) => game.platform)));
 
 type SortKey = "players" | "name" | "year";
 
-export function GamesBrowser() {
+export function GamesBrowser({ banner }: { banner: ReactNode }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [platform, setPlatform] = useState("all");
@@ -85,7 +84,7 @@ export function GamesBrowser() {
 
   return (
     <>
-      <SupporterBanner />
+      {banner}
 
       <div className="games-toolbar">
         <div className="games-tabs">

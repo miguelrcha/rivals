@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { GamesBrowser } from "@/components/dashboard/GamesBrowser";
+import { SupporterBanner } from "@/components/dashboard/SupporterBanner";
 
 export const metadata: Metadata = {
   title: "Games / Rivals",
@@ -7,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function GamesPage() {
-  return <GamesBrowser />;
+  return <GamesBrowser banner={<SupporterBanner />} />;
 }

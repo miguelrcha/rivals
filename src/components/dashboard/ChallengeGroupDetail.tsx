@@ -42,6 +42,7 @@ type Props = {
   group: Group;
   initialItems: ChallengeItem[];
   initialMembers: Member[];
+  initialPendingInvitees: Member[];
   friends: ProfileSummary[];
   covers: Record<string, string>;
 };
@@ -51,6 +52,7 @@ export function ChallengeGroupDetail({
   group,
   initialItems,
   initialMembers,
+  initialPendingInvitees,
   friends,
   covers,
 }: Props) {
@@ -59,6 +61,9 @@ export function ChallengeGroupDetail({
 
   const [items, setItems] = useState<ChallengeItem[]>(initialItems);
   const [members, setMembers] = useState<Member[]>(initialMembers);
+  const [pendingInvitees, setPendingInvitees] = useState<Member[]>(
+    initialPendingInvitees,
+  );
   const [invitableFriends, setInvitableFriends] =
     useState<ProfileSummary[]>(friends);
   const [selectedFriendId, setSelectedFriendId] = useState("");
@@ -138,9 +143,27 @@ export function ChallengeGroupDetail({
       return;
     }
 
-    setMembers((current) => [...current, { userId: friend.id, profile: friend }]);
+    setPendingInvitees((current) => [
+      ...current,
+      { userId: friend.id, profile: friend },
+    ]);
     setInvitableFriends((current) => current.filter((f) => f.id !== friend.id));
     setSelectedFriendId("");
+  }
+
+  async function handleCancelInvite(memberUserId: string) {
+    const supabase = createClient();
+    const { error: deleteError } = await supabase
+      .from("challenge_group_members")
+      .delete()
+      .eq("group_id", group.id)
+      .eq("user_id", memberUserId);
+
+    if (!deleteError) {
+      setPendingInvitees((current) =>
+        current.filter((m) => m.userId !== memberUserId),
+      );
+    }
   }
 
   async function handleAddGame(event: FormEvent<HTMLFormElement>) {
@@ -218,6 +241,22 @@ export function ChallengeGroupDetail({
       setItems((current) =>
         current.map((item) =>
           item.id === itemId ? { ...item, status: "done" } : item,
+        ),
+      );
+    }
+  }
+
+  async function handleSetQueued(itemId: string) {
+    const supabase = createClient();
+    const { error: updateError } = await supabase
+      .from("challenge_items")
+      .update({ status: "queued" })
+      .eq("id", itemId);
+
+    if (!updateError) {
+      setItems((current) =>
+        current.map((item) =>
+          item.id === itemId ? { ...item, status: "queued" } : item,
         ),
       );
     }
@@ -358,7 +397,15 @@ export function ChallengeGroupDetail({
                     </div>
 
                     <div className="challenge-queue__actions">
-                      {item.status !== "current" && (
+                      {item.status === "current" ? (
+                        <button
+                          type="button"
+                          className="challenge-queue__action"
+                          onClick={() => handleSetQueued(item.id)}
+                        >
+                          Stop playing
+                        </button>
+                      ) : (
                         <button
                           type="button"
                           className="challenge-queue__action"
@@ -367,7 +414,15 @@ export function ChallengeGroupDetail({
                           Play now
                         </button>
                       )}
-                      {item.status !== "done" && (
+                      {item.status === "done" ? (
+                        <button
+                          type="button"
+                          className="challenge-queue__action"
+                          onClick={() => handleSetQueued(item.id)}
+                        >
+                          Undo done
+                        </button>
+                      ) : (
                         <button
                           type="button"
                           className="challenge-queue__action"
@@ -472,6 +527,55 @@ export function ChallengeGroupDetail({
               </div>
             ))}
           </div>
+
+          {pendingInvitees.length > 0 && (
+            <>
+              <div className="dashboard-panel__header friends-sent-header">
+                <span className="dashboard-panel__title">PENDING INVITES</span>
+                <span className="friends-count">{pendingInvitees.length}</span>
+              </div>
+              <div className="friends-list challenge-members">
+                {pendingInvitees.map((invitee) => (
+                  <div className="friend-row" key={invitee.userId}>
+                    <Link
+                      href={`/users/${invitee.profile.username}`}
+                      className="friend-row__identity"
+                    >
+                      <div
+                        className="friend-row__avatar"
+                        style={{ background: invitee.profile.avatar_color }}
+                        aria-hidden="true"
+                      >
+                        {invitee.profile.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={invitee.profile.avatar_url} alt="" />
+                        ) : (
+                          invitee.profile.avatar_initial
+                        )}
+                      </div>
+                      <div className="friend-row__names">
+                        <span className="friend-row__display-name">
+                          {invitee.profile.display_name}
+                        </span>
+                        <span className="friend-row__username">
+                          Waiting for them to accept
+                        </span>
+                      </div>
+                    </Link>
+                    {(isOwner || invitee.userId === userId) && (
+                      <button
+                        type="button"
+                        className="friend-row__action friend-row__action--muted"
+                        onClick={() => handleCancelInvite(invitee.userId)}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           {invitableFriends.length > 0 && (
             <form className="wishlist-add-form" onSubmit={handleInvite}>

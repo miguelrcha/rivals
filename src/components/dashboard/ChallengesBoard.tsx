@@ -22,20 +22,64 @@ type ChallengeGroup = {
   items: ChallengeItem[];
 };
 
+type PendingInvite = {
+  id: string;
+  name: string;
+};
+
 type Props = {
   userId: string;
   initialGroups: ChallengeGroup[];
+  initialPendingInvites: PendingInvite[];
   covers: Record<string, string>;
 };
 
-export function ChallengesBoard({ userId, initialGroups, covers }: Props) {
+export function ChallengesBoard({
+  userId,
+  initialGroups,
+  initialPendingInvites,
+  covers,
+}: Props) {
   const router = useRouter();
   const [groups, setGroups] = useState<ChallengeGroup[]>(initialGroups);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>(
+    initialPendingInvites,
+  );
   const [newGroupName, setNewGroupName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [joinCode, setJoinCode] = useState("");
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState("");
+
+  async function handleAcceptInvite(invite: PendingInvite) {
+    const supabase = createClient();
+    const { error: updateError } = await supabase
+      .from("challenge_group_members")
+      .update({ status: "accepted" })
+      .eq("group_id", invite.id)
+      .eq("user_id", userId);
+
+    if (updateError) {
+      setError("Couldn't accept that invite — try again.");
+      return;
+    }
+
+    setPendingInvites((current) => current.filter((i) => i.id !== invite.id));
+    router.push(`/dashboard/challenges/${invite.id}`);
+  }
+
+  async function handleDeclineInvite(invite: PendingInvite) {
+    const supabase = createClient();
+    const { error: deleteError } = await supabase
+      .from("challenge_group_members")
+      .delete()
+      .eq("group_id", invite.id)
+      .eq("user_id", userId);
+
+    if (!deleteError) {
+      setPendingInvites((current) => current.filter((i) => i.id !== invite.id));
+    }
+  }
 
   async function handleCreateGroup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -158,6 +202,45 @@ export function ChallengesBoard({ userId, initialGroups, covers }: Props) {
       </div>
 
       {error && <p className="auth-error">{error}</p>}
+
+      {pendingInvites.length > 0 && (
+        <div className="dashboard-panel challenge-invites">
+          <div className="dashboard-panel__header">
+            <span className="dashboard-panel__title">INVITES</span>
+            <span className="friends-count">{pendingInvites.length}</span>
+          </div>
+          <div className="friends-list">
+            {pendingInvites.map((invite) => (
+              <div className="friend-row" key={invite.id}>
+                <span className="friend-row__names">
+                  <span className="friend-row__display-name">
+                    {invite.name}
+                  </span>
+                  <span className="friend-row__username">
+                    You&apos;ve been invited to this challenge
+                  </span>
+                </span>
+                <div className="friend-row__actions">
+                  <button
+                    type="button"
+                    className="friend-row__action"
+                    onClick={() => handleAcceptInvite(invite)}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    className="friend-row__action friend-row__action--muted"
+                    onClick={() => handleDeclineInvite(invite)}
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {groups.length === 0 ? (
         <div className="dashboard-panel">

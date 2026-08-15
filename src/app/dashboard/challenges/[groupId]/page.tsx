@@ -53,7 +53,7 @@ export default async function ChallengeGroupPage({ params }: Props) {
         .order("position", { ascending: true }),
       supabase
         .from("challenge_group_members")
-        .select(`user_id, joined_at, profile:profiles(${PROFILE_FIELDS})`)
+        .select(`user_id, joined_at, status, profile:profiles(${PROFILE_FIELDS})`)
         .eq("group_id", groupId)
         .order("joined_at", { ascending: true }),
       supabase
@@ -65,12 +65,21 @@ export default async function ChallengeGroupPage({ params }: Props) {
         .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`),
     ]);
 
-  const members = (memberRows ?? []).map((row) => ({
-    userId: row.user_id as string,
-    profile: row.profile as unknown as ProfileSummary,
-  }));
+  const members = (memberRows ?? [])
+    .filter((row) => row.status === "accepted")
+    .map((row) => ({
+      userId: row.user_id as string,
+      profile: row.profile as unknown as ProfileSummary,
+    }));
 
-  const memberIds = new Set(members.map((m) => m.userId));
+  const pendingInvitees = (memberRows ?? [])
+    .filter((row) => row.status === "pending")
+    .map((row) => ({
+      userId: row.user_id as string,
+      profile: row.profile as unknown as ProfileSummary,
+    }));
+
+  const memberIds = new Set((memberRows ?? []).map((row) => row.user_id as string));
 
   const friends = (friendRows ?? [])
     .map((row) =>
@@ -98,6 +107,7 @@ export default async function ChallengeGroupPage({ params }: Props) {
       }}
       initialItems={initialItems}
       initialMembers={members}
+      initialPendingInvitees={pendingInvitees}
       friends={friends}
       covers={GAME_BOXART}
     />

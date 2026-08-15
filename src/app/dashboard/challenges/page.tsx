@@ -28,16 +28,37 @@ export default async function ChallengesPage() {
         .from("challenge_items")
         .select("id, group_id, game_slug, status, position")
         .order("position", { ascending: true }),
-      supabase.from("challenge_group_members").select("group_id, user_id"),
+      supabase
+        .from("challenge_group_members")
+        .select("group_id, user_id, status"),
     ]);
 
-  const initialGroups = (groups ?? []).map((group) => ({
+  const myMembership = new Map(
+    (members ?? [])
+      .filter((m) => m.user_id === user.id)
+      .map((m) => [m.group_id as string, m.status as string]),
+  );
+
+  const acceptedGroupRows = (groups ?? []).filter(
+    (group) =>
+      group.owner_id === user.id || myMembership.get(group.id) === "accepted",
+  );
+
+  const pendingInvites = (groups ?? [])
+    .filter((group) => myMembership.get(group.id) === "pending")
+    .map((group) => ({
+      id: group.id as string,
+      name: group.name as string,
+    }));
+
+  const initialGroups = acceptedGroupRows.map((group) => ({
     id: group.id as string,
     name: group.name as string,
     isOwner: group.owner_id === user.id,
     inviteCode: group.invite_code as string,
-    memberCount: (members ?? []).filter((m) => m.group_id === group.id)
-      .length,
+    memberCount: (members ?? []).filter(
+      (m) => m.group_id === group.id && m.status === "accepted",
+    ).length,
     items: (items ?? [])
       .filter((item) => item.group_id === group.id)
       .map((item) => ({
@@ -60,6 +81,7 @@ export default async function ChallengesPage() {
       <ChallengesBoard
         userId={user.id}
         initialGroups={initialGroups}
+        initialPendingInvites={pendingInvites}
         covers={GAME_BOXART}
       />
     </>
