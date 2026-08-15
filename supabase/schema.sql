@@ -759,3 +759,12 @@ begin
   on conflict (group_id, user_id) do nothing;
 end;
 $$;
+
+-- ============================================================
+-- migrations/015_active_run_character_details.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+
+alter table public.profiles add column if not exists active_game_player_name text;
+
+alter table public.profiles add column if not exists active_game_badge_names text[] not null default '{}';

@@ -6,6 +6,7 @@ import { SupporterBanner } from "@/components/dashboard/SupporterBanner";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { AddFriendButton } from "@/components/profile/AddFriendButton";
 import { ClearActiveRunButton } from "@/components/profile/ClearActiveRunButton";
+import { RunDetailsButton } from "@/components/profile/RunDetailsButton";
 import { createClient } from "@/lib/supabase/server";
 import { getGameBySlug } from "@/lib/games";
 import { formatElapsed } from "@/lib/format";
@@ -205,6 +206,17 @@ export default async function UserProfilePage({ params }: Props) {
                   >
                     {activeGame.name}
                   </Link>
+                  {(profile.active_game_sync_count ?? 0) > 0 && (
+                    <RunDetailsButton
+                      gameName={activeGame.name}
+                      playerName={profile.active_game_player_name}
+                      badgeNames={profile.active_game_badge_names ?? []}
+                      pokedexCaught={profile.active_game_pokedex_caught ?? 0}
+                      playTimeSeconds={
+                        profile.active_game_playtime_seconds ?? 0
+                      }
+                    />
+                  )}
                   {isOwnProfile && (
                     <ClearActiveRunButton userId={profile.id} />
                   )}

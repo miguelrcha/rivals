@@ -44,8 +44,45 @@ const NATIONAL_DEX_COUNT = 386; // Gen III era Pokédex size
 // Absolute SaveBlock1 offset: flags[NUM_FLAG_BYTES] at 0x0EE0, + 0x104 = 0xFE4.
 const BADGES_BYTE_OFFSET = 0x0fe4;
 
+const PLAYER_NAME_OFFSET = 0x000; // SaveBlock2.playerName
+const PLAYER_NAME_MAX_LENGTH = 7; // PLAYER_NAME_LENGTH
+const STRING_TERMINATOR = 0xff; // Gen III end-of-string byte
+
+// Kanto gym badges, in FLAG_BADGE01_GET..FLAG_BADGE08_GET order — bit 0 of
+// the badges byte is Boulder Badge, bit 7 is Earth Badge.
+export const KANTO_BADGE_NAMES = [
+  "Boulder Badge",
+  "Cascade Badge",
+  "Thunder Badge",
+  "Rainbow Badge",
+  "Soul Badge",
+  "Marsh Badge",
+  "Volcano Badge",
+  "Earth Badge",
+] as const;
+
+// Gen III's custom character encoding (charmap.txt from the decompiled
+// source) — covers the subset player names actually use: A-Z, a-z, 0-9.
+const CHARMAP: Record<number, string> = {
+  0xa1: "0", 0xa2: "1", 0xa3: "2", 0xa4: "3", 0xa5: "4",
+  0xa6: "5", 0xa7: "6", 0xa8: "7", 0xa9: "8", 0xaa: "9",
+  0xbb: "A", 0xbc: "B", 0xbd: "C", 0xbe: "D", 0xbf: "E",
+  0xc0: "F", 0xc1: "G", 0xc2: "H", 0xc3: "I", 0xc4: "J",
+  0xc5: "K", 0xc6: "L", 0xc7: "M", 0xc8: "N", 0xc9: "O",
+  0xca: "P", 0xcb: "Q", 0xcc: "R", 0xcd: "S", 0xce: "T",
+  0xcf: "U", 0xd0: "V", 0xd1: "W", 0xd2: "X", 0xd3: "Y",
+  0xd4: "Z", 0xd5: "a", 0xd6: "b", 0xd7: "c", 0xd8: "d",
+  0xd9: "e", 0xda: "f", 0xdb: "g", 0xdc: "h", 0xdd: "i",
+  0xde: "j", 0xdf: "k", 0xe0: "l", 0xe1: "m", 0xe2: "n",
+  0xe3: "o", 0xe4: "p", 0xe5: "q", 0xe6: "r", 0xe7: "s",
+  0xe8: "t", 0xe9: "u", 0xea: "v", 0xeb: "w", 0xec: "x",
+  0xed: "y", 0xee: "z", 0x00: " ",
+};
+
 export type FireRedSaveStats = {
+  playerName: string;
   badgeCount: number;
+  badges: string[];
   pokedexOwned: number;
   pokedexSeen: number;
   playTimeSeconds: number;
@@ -109,6 +146,11 @@ export function parseFireRedSave(buffer: ArrayBuffer): FireRedSaveStats | null {
 
   const badgesByte = saveBlock1[BADGES_BYTE_OFFSET] ?? 0;
   const badgeCount = popcount(badgesByte);
+  const badges = KANTO_BADGE_NAMES.filter(
+    (_, index) => (badgesByte >> index) & 1,
+  );
+
+  const playerName = decodePlayerName(saveBlock2, PLAYER_NAME_OFFSET);
 
   const pokedexOwned = countSetBits(
     saveBlock2,
@@ -129,12 +171,24 @@ export function parseFireRedSave(buffer: ArrayBuffer): FireRedSaveStats | null {
   const playTimeSeconds = hours * 3600 + minutes * 60 + seconds;
 
   return {
+    playerName,
     badgeCount,
+    badges,
     pokedexOwned,
     pokedexSeen,
     playTimeSeconds,
     progress: Math.round((badgeCount / 8) * 100),
   };
+}
+
+function decodePlayerName(bytes: Uint8Array, offset: number): string {
+  let name = "";
+  for (let i = 0; i < PLAYER_NAME_MAX_LENGTH; i++) {
+    const byte = bytes[offset + i];
+    if (byte === undefined || byte === STRING_TERMINATOR) break;
+    name += CHARMAP[byte] ?? "?";
+  }
+  return name;
 }
 
 function concatBytes(parts: Uint8Array[]): Uint8Array {

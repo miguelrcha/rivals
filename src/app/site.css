@@ -1840,6 +1840,197 @@
   text-decoration: none;
 }
 
+.profile-run-card__details-btn {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  background: none;
+  border: 2px solid var(--charcoal-line);
+  color: var(--fog);
+}
+
+.profile-run-card__details-btn:hover {
+  border-color: var(--yellow);
+  color: var(--yellow);
+}
+
+.trainer-card-modal {
+  max-width: 400px;
+  position: relative;
+  padding: 20px;
+}
+
+.trainer-card__close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1;
+}
+
+.trainer-card {
+  border-radius: 14px;
+  background: linear-gradient(160deg, #dff2ea 0%, #cbe6da 100%);
+  border: 5px solid #8fa3ad;
+  box-shadow:
+    inset 0 0 0 2px #eafaf3,
+    inset 0 0 0 5px #2a9d8f;
+  padding: 16px 18px 20px;
+  color: #12312c;
+}
+
+.trainer-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid #2a9d8f;
+  padding-bottom: 10px;
+  margin-bottom: 14px;
+}
+
+.trainer-card__title {
+  font-family: var(--font-pixel);
+  font-size: 15px;
+  letter-spacing: 1px;
+  color: #b8860b;
+  text-shadow: 1px 1px 0 #12312c33;
+}
+
+.trainer-card__game-pill {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #12312c;
+  background: #f4fbf8;
+  border: 1px solid #2a9d8f55;
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+
+.trainer-card__body {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+}
+
+.trainer-card__fields {
+  flex: 1;
+  min-width: 0;
+}
+
+.trainer-card__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+}
+
+.trainer-card__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: #2a9d8f;
+  white-space: nowrap;
+}
+
+.trainer-card__bullet {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid #2a9d8f;
+}
+
+.trainer-card__value {
+  flex: 1;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  background: #f4fbf8;
+  border: 1px solid #2a9d8f55;
+  border-radius: 4px;
+  padding: 4px 10px;
+}
+
+.trainer-card__silhouette {
+  position: relative;
+  width: 54px;
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+
+.trainer-card__silhouette-cap {
+  position: absolute;
+  bottom: 68px;
+  left: 10px;
+  width: 34px;
+  height: 16px;
+  border-radius: 20px 20px 0 0;
+  background: linear-gradient(160deg, #e63946, #b8232f);
+}
+
+.trainer-card__silhouette-head {
+  position: absolute;
+  bottom: 56px;
+  left: 15px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #f2b380;
+}
+
+.trainer-card__silhouette-body {
+  position: absolute;
+  bottom: 0;
+  left: 2px;
+  width: 50px;
+  height: 58px;
+  border-radius: 16px 16px 0 0;
+  background: linear-gradient(180deg, #2a9d8f, #21766c);
+}
+
+.trainer-card__badges {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 2px solid #2a9d8f;
+}
+
+.trainer-card__badges-label {
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: #2a9d8f;
+}
+
+.trainer-card__badges-row {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.trainer-card__badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  background: #f4fbf8;
+  border: 2px solid #2a9d8f55;
+}
+
+.trainer-card__badge--earned {
+  background: radial-gradient(circle at 35% 30%, #ffe27a, #d4a017);
+  border-color: #b8860b;
+  box-shadow: 0 0 6px rgba(212, 160, 23, 0.6);
+}
+
+.trainer-card__team-note {
+  margin-top: 14px;
+  text-align: center;
+}
+
 .profile-run-card__name:hover {
   color: var(--yellow);
 }

@@ -23,6 +23,8 @@ export function ClearActiveRunButton({ userId }: { userId: string }) {
         active_game_badges: 0,
         active_game_pokedex_caught: 0,
         active_game_playtime_seconds: 0,
+        active_game_player_name: null,
+        active_game_badge_names: [],
       })
       .eq("id", userId);
 
