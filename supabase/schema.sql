@@ -768,3 +768,98 @@ $$;
 alter table public.profiles add column if not exists active_game_player_name text;
 
 alter table public.profiles add column if not exists active_game_badge_names text[] not null default '{}';
+
+-- ============================================================
+-- migrations/016_challenge_item_completions.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+
+create table if not exists public.challenge_item_completions (
+  id uuid primary key default gen_random_uuid(),
+  item_id uuid not null references public.challenge_items (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  completed_at timestamptz not null default now(),
+  unique (item_id, user_id)
+);
+
+alter table public.challenge_item_completions enable row level security;
+
+drop policy if exists "Members can view completions in their group's queue" on public.challenge_item_completions;
+create policy "Members can view completions in their group's queue"
+  on public.challenge_item_completions for select
+  using (
+    exists (
+      select 1 from public.challenge_items ci
+      where ci.id = challenge_item_completions.item_id
+        and public.is_challenge_group_member(ci.group_id, auth.uid())
+    )
+  );
+
+drop policy if exists "Members can mark their own completion" on public.challenge_item_completions;
+create policy "Members can mark their own completion"
+  on public.challenge_item_completions for insert
+  with check (
+    user_id = auth.uid()
+    and exists (
+      select 1 from public.challenge_items ci
+      where ci.id = challenge_item_completions.item_id
+        and public.is_challenge_group_member(ci.group_id, auth.uid())
+    )
+  );
+
+drop policy if exists "Members can unmark their own completion" on public.challenge_item_completions;
+create policy "Members can unmark their own completion"
+  on public.challenge_item_completions for delete
+  using (user_id = auth.uid());
+
+-- ============================================================
+-- migrations/017_runs_in_progress.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+
+alter table public.runs alter column time_seconds drop not null;
+
+alter table public.runs add column if not exists started_at timestamptz not null default now();
+
+-- ============================================================
+-- migrations/018_challenge_item_plays.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+
+create table if not exists public.challenge_item_plays (
+  id uuid primary key default gen_random_uuid(),
+  item_id uuid not null references public.challenge_items (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  started_at timestamptz not null default now(),
+  unique (item_id, user_id)
+);
+
+alter table public.challenge_item_plays enable row level security;
+
+drop policy if exists "Members can view plays in their group's queue" on public.challenge_item_plays;
+create policy "Members can view plays in their group's queue"
+  on public.challenge_item_plays for select
+  using (
+    exists (
+      select 1 from public.challenge_items ci
+      where ci.id = challenge_item_plays.item_id
+        and public.is_challenge_group_member(ci.group_id, auth.uid())
+    )
+  );
+
+drop policy if exists "Members can mark themselves playing" on public.challenge_item_plays;
+create policy "Members can mark themselves playing"
+  on public.challenge_item_plays for insert
+  with check (
+    user_id = auth.uid()
+    and exists (
+      select 1 from public.challenge_items ci
+      where ci.id = challenge_item_plays.item_id
+        and public.is_challenge_group_member(ci.group_id, auth.uid())
+    )
+  );
+
+drop policy if exists "Members can unmark themselves playing" on public.challenge_item_plays;
+create policy "Members can unmark themselves playing"
+  on public.challenge_item_plays for delete
+  using (user_id = auth.uid());

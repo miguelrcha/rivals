@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useRef, useState } from "react";
+import { ChangeEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -19,9 +19,16 @@ const SAVE_PARSERS: Partial<
   "pokemon-leaf-green": parseFireRedSave,
 };
 
+function todayLocalDate() {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
 export function SetActiveGameButton({
   slug,
   name,
+  gameId,
   isActive,
   existingRomFilename,
   initialProgress,
@@ -29,6 +36,7 @@ export function SetActiveGameButton({
 }: {
   slug: string;
   name: string;
+  gameId: string | null;
   isActive: boolean;
   existingRomFilename: string | null;
   initialProgress: number;
@@ -37,12 +45,10 @@ export function SetActiveGameButton({
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [romFile, setRomFile] = useState<File | null>(null);
+  const [startDate, setStartDate] = useState(todayLocalDate());
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(initialProgress);
-  const progressSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
   const [syncStats, setSyncStats] = useState<FireRedSaveStats | null>(null);
   const [syncError, setSyncError] = useState("");
   const [isSyncing, setIsSyncing] = useState(false);
@@ -104,25 +110,9 @@ export function SetActiveGameButton({
     }
   }
 
-  function handleProgressChange(event: ChangeEvent<HTMLInputElement>) {
-    const value = Number(event.target.value);
-    setProgress(value);
-
-    if (progressSaveTimeout.current) {
-      clearTimeout(progressSaveTimeout.current);
-    }
-    progressSaveTimeout.current = setTimeout(async () => {
-      const supabase = createClient();
-      await supabase
-        .from("profiles")
-        .update({ active_game_progress: value })
-        .eq("id", (await supabase.auth.getUser()).data.user?.id ?? "");
-      router.refresh();
-    }, 400);
-  }
-
   function openModal() {
     setRomFile(null);
+    setStartDate(todayLocalDate());
     setError("");
     setIsOpen(true);
   }
@@ -138,8 +128,17 @@ export function SetActiveGameButton({
     setRomFile(event.target.files?.[0] ?? null);
   }
 
+  function handleStartDateChange(event: ChangeEvent<HTMLInputElement>) {
+    setStartDate(event.target.value);
+  }
+
   async function setActive(uploadRom: boolean) {
     if (isSaving) return;
+
+    if (!startDate) {
+      setError("Pick the date you started this run.");
+      return;
+    }
 
     setIsSaving(true);
     setError("");
@@ -151,6 +150,8 @@ export function SetActiveGameButton({
       } = await supabase.auth.getUser();
 
       if (!user) throw new Error("You need to be signed in to do that.");
+
+      const startedAt = new Date(`${startDate}T00:00:00`).toISOString();
 
       if (uploadRom && romFile) {
         const safeName = romFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -177,7 +178,7 @@ export function SetActiveGameButton({
         .from("profiles")
         .update({
           active_game_slug: slug,
-          active_game_started_at: new Date().toISOString(),
+          active_game_started_at: startedAt,
           active_game_progress: 0,
           active_game_sync_count: 0,
           active_game_badges: 0,
@@ -188,6 +189,15 @@ export function SetActiveGameButton({
         })
         .eq("id", user.id);
       if (updateError) throw updateError;
+
+      if (gameId) {
+        const { error: runError } = await supabase.from("runs").insert({
+          runner_id: user.id,
+          game_id: gameId,
+          started_at: startedAt,
+        });
+        if (runError) throw runError;
+      }
 
       setIsOpen(false);
       setRomFile(null);
@@ -203,74 +213,30 @@ export function SetActiveGameButton({
     }
   }
 
-  async function handleClear() {
-    if (isSaving) return;
-
-    setIsSaving(true);
-    setError("");
-
-    try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) return;
-
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          active_game_slug: null,
-          active_game_started_at: null,
-          active_game_progress: 0,
-          active_game_sync_count: 0,
-          active_game_badges: 0,
-          active_game_pokedex_caught: 0,
-          active_game_playtime_seconds: 0,
-          active_game_player_name: null,
-          active_game_badge_names: [],
-        })
-        .eq("id", user.id);
-      if (updateError) throw updateError;
-
-      setSyncCount(0);
-      setSyncStats(null);
-      router.refresh();
-    } catch {
-      setError("Couldn't clear that — try again.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
   return (
     <div className="game-hero__active">
-      <button
-        type="button"
-        className={`game-hero__active-btn${
-          isActive ? " game-hero__active-btn--active" : ""
-        }`}
-        onClick={isActive ? handleClear : openModal}
-        disabled={isSaving}
-      >
-        {isActive
-          ? "🎮 Active game — clear"
-          : `Set ${name} as active game`}
-      </button>
+      {!isActive && (
+        <button
+          type="button"
+          className="game-hero__active-btn"
+          onClick={openModal}
+          disabled={isSaving}
+        >
+          {`Add a run — ${name}`}
+        </button>
+      )}
 
       {isActive && (
         <div className="game-hero__progress">
-          <label htmlFor="active-game-progress">
+          <span className="game-hero__progress-label">
             Progress — {progress}%
-          </label>
-          <input
-            id="active-game-progress"
-            type="range"
-            min={0}
-            max={100}
-            value={progress}
-            onChange={handleProgressChange}
-          />
+          </span>
+          <span className="game-hero__progress-bar">
+            <span
+              className="game-hero__progress-fill"
+              style={{ width: `${progress}%` }}
+            />
+          </span>
         </div>
       )}
 
@@ -312,7 +278,7 @@ export function SetActiveGameButton({
             onClick={(event) => event.stopPropagation()}
           >
             <div className="import-modal__header">
-              <span className="import-modal__title">Add ROM — {name}</span>
+              <span className="import-modal__title">New run — {name}</span>
               <button
                 type="button"
                 className="import-modal__close"
@@ -339,6 +305,17 @@ export function SetActiveGameButton({
               <input type="file" onChange={handleRomChange} hidden />
             </label>
 
+            <label className="import-modal__field">
+              Run started on
+              <input
+                type="date"
+                className="import-modal__date"
+                value={startDate}
+                max={todayLocalDate()}
+                onChange={handleStartDateChange}
+              />
+            </label>
+
             {error && <p className="import-modal__error">{error}</p>}
 
             <div className="import-modal__actions">
@@ -348,7 +325,7 @@ export function SetActiveGameButton({
                 onClick={() => setActive(false)}
                 disabled={isSaving}
               >
-                Skip for now
+                Register without ROM
               </button>
               <button
                 type="button"
@@ -356,7 +333,7 @@ export function SetActiveGameButton({
                 onClick={() => setActive(true)}
                 disabled={isSaving || !romFile}
               >
-                {isSaving ? "Saving…" : "Save & set active"}
+                {isSaving ? "Saving…" : "Register run"}
               </button>
             </div>
           </div>

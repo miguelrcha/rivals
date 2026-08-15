@@ -105,7 +105,7 @@ export default async function GamePage({ params }: Props) {
           <>
             <div
               className="game-hero__backdrop"
-              style={{ backgroundImage: `url(${coverUrl})` }}
+              style={{ backgroundImage: `url("${coverUrl}")` }}
               aria-hidden="true"
             />
             <div
@@ -165,6 +165,7 @@ export default async function GamePage({ params }: Props) {
                 key={game.slug}
                 slug={game.slug}
                 name={game.name}
+                gameId={gameRow?.id ?? null}
                 isActive={activeGameSlug === game.slug}
                 existingRomFilename={existingRomFilename}
                 initialProgress={activeGameProgress}

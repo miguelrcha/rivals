@@ -91,7 +91,7 @@ export default async function UserProfilePage({ params }: Props) {
         className="profile-banner"
         style={{
           backgroundImage: profile.banner_url
-            ? `url(${profile.banner_url})`
+            ? `url("${profile.banner_url}")`
             : undefined,
           background: !profile.banner_url ? profile.avatar_color : undefined,
         }}
@@ -119,6 +119,11 @@ export default async function UserProfilePage({ params }: Props) {
             >
               {profile.display_name}
             </h1>
+            {profile.flag && (
+              <span className="profile-header__flag" aria-hidden="true">
+                {profile.flag}
+              </span>
+            )}
             <div className="profile-badges">
               {profile.username === "miguelrcha" && (
                 <span className="profile-badge profile-badge--owner">
@@ -129,9 +134,6 @@ export default async function UserProfilePage({ params }: Props) {
             </div>
           </div>
           <p className="profile-header__tagline">
-            {profile.flag && (
-              <span aria-hidden="true">{profile.flag} </span>
-            )}
             {profile.tagline ?? `@${profile.username}`}
           </p>
         </div>

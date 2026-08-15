@@ -9,10 +9,10 @@ export async function SupporterBanner() {
     supabase
       .from("profiles")
       .select("username, avatar_url, avatar_color, avatar_initial")
-      .in("username", ["miguelrcha", "guelzn"]),
+      .in("username", ["miguelrcha", "guelzn", "manoLF"]),
   ]);
 
-  const realAvatars = ["miguelrcha", "guelzn"].map(
+  const realAvatars = ["miguelrcha", "guelzn", "manoLF"].map(
     (username) => featured?.find((p) => p.username === username) ?? null,
   );
 
@@ -62,9 +62,6 @@ export async function SupporterBanner() {
                 </span>
               ),
             )}
-            <span className="dashboard-banner__avatar dashboard-banner__avatar--placeholder">
-              L
-            </span>
             <span className="dashboard-banner__avatar dashboard-banner__avatar--placeholder">
               M
             </span>

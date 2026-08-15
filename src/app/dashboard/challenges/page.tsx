@@ -8,6 +8,9 @@ export const metadata: Metadata = {
   description: "Race a queue of games with your crew — solo or with friends.",
 };
 
+const PROFILE_FIELDS =
+  "id, username, display_name, avatar_color, avatar_initial, avatar_url";
+
 export default async function ChallengesPage() {
   const supabase = await createClient();
   const {
@@ -26,11 +29,14 @@ export default async function ChallengesPage() {
         .order("created_at", { ascending: true }),
       supabase
         .from("challenge_items")
-        .select("id, group_id, game_slug, status, position")
+        .select("id, group_id, game_slug, position")
         .order("position", { ascending: true }),
       supabase
         .from("challenge_group_members")
-        .select("group_id, user_id, status"),
+        .select(
+          `group_id, user_id, status, joined_at, profile:profiles(${PROFILE_FIELDS})`,
+        )
+        .order("joined_at", { ascending: true }),
     ]);
 
   const myMembership = new Map(
@@ -59,12 +65,14 @@ export default async function ChallengesPage() {
     memberCount: (members ?? []).filter(
       (m) => m.group_id === group.id && m.status === "accepted",
     ).length,
+    members: (members ?? [])
+      .filter((m) => m.group_id === group.id && m.status === "accepted")
+      .map((m) => m.profile as unknown as ProfileSummary),
     items: (items ?? [])
       .filter((item) => item.group_id === group.id)
       .map((item) => ({
         id: item.id as string,
         gameSlug: item.game_slug as string,
-        status: item.status as "queued" | "current" | "done",
       })),
   }));
 
@@ -87,3 +95,12 @@ export default async function ChallengesPage() {
     </>
   );
 }
+
+type ProfileSummary = {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_color: string;
+  avatar_initial: string;
+  avatar_url: string | null;
+};

@@ -155,7 +155,7 @@ export function EditProfileModal({
                 className="edit-profile-form__banner"
                 style={{
                   backgroundImage: bannerPreview
-                    ? `url(${bannerPreview})`
+                    ? `url("${bannerPreview}")`
                     : undefined,
                   background: !bannerPreview ? avatarColor : undefined,
                 }}

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { signOut } from "@/app/auth/actions";
 import { createClient } from "@/lib/supabase/server";
-import { GAMES } from "@/lib/games";
 import { MobileNav } from "./MobileNav";
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
@@ -16,23 +15,16 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     avatar_color: string;
     avatar_initial: string;
     avatar_url: string | null;
-    active_game_slug: string | null;
   } | null = null;
 
   if (user) {
     const { data } = await supabase
       .from("profiles")
-      .select(
-        "username, display_name, avatar_color, avatar_initial, avatar_url, active_game_slug",
-      )
+      .select("username, display_name, avatar_color, avatar_initial, avatar_url")
       .eq("id", user.id)
       .single();
     profile = data;
   }
-
-  const activeGame = profile?.active_game_slug
-    ? GAMES.find((game) => game.slug === profile.active_game_slug)
-    : null;
 
   return (
     <div className="dashboard-shell">
@@ -162,15 +154,9 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
                     <div className="dashboard-account__name">
                       {profile.display_name}
                     </div>
-                    {activeGame ? (
-                      <div className="dashboard-account__game">
-                        🎮 {activeGame.name}
-                      </div>
-                    ) : (
-                      <div className="dashboard-account__email">
-                        {user?.email ?? ""}
-                      </div>
-                    )}
+                    <div className="dashboard-account__email">
+                      {user?.email ?? ""}
+                    </div>
                   </div>
                 </Link>
 

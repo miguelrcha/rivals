@@ -7,15 +7,6 @@ import { FormEvent, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { GAMES } from "@/lib/games";
 
-type ItemStatus = "queued" | "current" | "done";
-
-type ChallengeItem = {
-  id: string;
-  gameSlug: string;
-  status: ItemStatus;
-  position: number;
-};
-
 type ProfileSummary = {
   id: string;
   username: string;
@@ -23,6 +14,19 @@ type ProfileSummary = {
   avatar_color: string;
   avatar_initial: string;
   avatar_url: string | null;
+};
+
+type Completion = {
+  userId: string;
+  profile: ProfileSummary;
+};
+
+type ChallengeItem = {
+  id: string;
+  gameSlug: string;
+  position: number;
+  completions: Completion[];
+  plays: Completion[];
 };
 
 type Member = {
@@ -73,6 +77,7 @@ export function ChallengeGroupDetail({
 
   const addedSlugs = new Set(items.map((item) => item.gameSlug));
   const availableGames = GAMES.filter((game) => !addedSlugs.has(game.slug));
+  const myProfile = members.find((m) => m.userId === userId)?.profile;
 
   async function handleCopyCode() {
     try {
@@ -179,7 +184,7 @@ export function ChallengeGroupDetail({
         position: items.length,
         added_by: userId,
       })
-      .select("id, game_slug, status, position")
+      .select("id, game_slug, position")
       .single();
 
     if (!insertError && data) {
@@ -188,8 +193,9 @@ export function ChallengeGroupDetail({
         {
           id: data.id,
           gameSlug: data.game_slug,
-          status: data.status,
           position: data.position,
+          completions: [],
+          plays: [],
         },
       ]);
       setSelectedSlug("");
@@ -208,57 +214,98 @@ export function ChallengeGroupDetail({
     }
   }
 
-  async function handleSetCurrent(itemId: string) {
-    const supabase = createClient();
-    const { error: rpcError } = await supabase.rpc(
-      "set_current_challenge_item",
-      { p_group_id: group.id, p_item_id: itemId },
-    );
+  async function handleTogglePlaying(itemId: string) {
+    if (!myProfile) return;
 
-    if (!rpcError) {
-      setItems((current) =>
-        current.map((item) => ({
-          ...item,
-          status:
-            item.id === itemId
-              ? "current"
-              : item.status === "current"
-                ? "queued"
-                : item.status,
-        })),
-      );
+    const item = items.find((i) => i.id === itemId);
+    const alreadyPlaying = item?.plays.some((p) => p.userId === userId);
+    const supabase = createClient();
+
+    if (alreadyPlaying) {
+      const { error: deleteError } = await supabase
+        .from("challenge_item_plays")
+        .delete()
+        .eq("item_id", itemId)
+        .eq("user_id", userId);
+
+      if (!deleteError) {
+        setItems((current) =>
+          current.map((i) =>
+            i.id === itemId
+              ? { ...i, plays: i.plays.filter((p) => p.userId !== userId) }
+              : i,
+          ),
+        );
+      }
+    } else {
+      const { error: insertError } = await supabase
+        .from("challenge_item_plays")
+        .insert({ item_id: itemId, user_id: userId });
+
+      if (!insertError) {
+        setItems((current) =>
+          current.map((i) =>
+            i.id === itemId
+              ? { ...i, plays: [...i.plays, { userId, profile: myProfile }] }
+              : i,
+          ),
+        );
+      }
     }
   }
 
-  async function handleMarkDone(itemId: string) {
+  async function handleToggleDone(itemId: string) {
+    if (!myProfile) return;
+
+    const item = items.find((i) => i.id === itemId);
+    const alreadyDone = item?.completions.some((c) => c.userId === userId);
     const supabase = createClient();
-    const { error: updateError } = await supabase
-      .from("challenge_items")
-      .update({ status: "done" })
-      .eq("id", itemId);
 
-    if (!updateError) {
-      setItems((current) =>
-        current.map((item) =>
-          item.id === itemId ? { ...item, status: "done" } : item,
-        ),
-      );
-    }
-  }
+    if (alreadyDone) {
+      const { error: deleteError } = await supabase
+        .from("challenge_item_completions")
+        .delete()
+        .eq("item_id", itemId)
+        .eq("user_id", userId);
 
-  async function handleSetQueued(itemId: string) {
-    const supabase = createClient();
-    const { error: updateError } = await supabase
-      .from("challenge_items")
-      .update({ status: "queued" })
-      .eq("id", itemId);
+      if (!deleteError) {
+        setItems((current) =>
+          current.map((i) =>
+            i.id === itemId
+              ? {
+                  ...i,
+                  completions: i.completions.filter((c) => c.userId !== userId),
+                }
+              : i,
+          ),
+        );
+      }
+    } else {
+      const { error: insertError } = await supabase
+        .from("challenge_item_completions")
+        .insert({ item_id: itemId, user_id: userId });
 
-    if (!updateError) {
-      setItems((current) =>
-        current.map((item) =>
-          item.id === itemId ? { ...item, status: "queued" } : item,
-        ),
-      );
+      if (!insertError) {
+        // Marking it done also stops "currently playing" — you're not still
+        // playing something you just finished.
+        await supabase
+          .from("challenge_item_plays")
+          .delete()
+          .eq("item_id", itemId)
+          .eq("user_id", userId);
+
+        setItems((current) =>
+          current.map((i) =>
+            i.id === itemId
+              ? {
+                  ...i,
+                  completions: [...i.completions, { userId, profile: myProfile }],
+                  plays: i.plays.filter((p) => p.userId !== userId),
+                }
+              : i,
+          ),
+        );
+      }
     }
   }
 
@@ -337,12 +384,22 @@ export function ChallengeGroupDetail({
               {sortedItems.map((item, index) => {
                 const game = GAMES.find((g) => g.slug === item.gameSlug);
                 const cover = covers[item.gameSlug];
+                const isDoneByMe = item.completions.some(
+                  (c) => c.userId === userId,
+                );
+                const isPlayingByMe = item.plays.some(
+                  (p) => p.userId === userId,
+                );
+                const rowClass = [
+                  "challenge-queue__row",
+                  `challenge-queue__row--${item.plays.length > 0 ? "current" : "queued"}`,
+                  isDoneByMe ? "challenge-queue__row--done" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
 
                 return (
-                  <div
-                    className={`challenge-queue__row challenge-queue__row--${item.status}`}
-                    key={item.id}
-                  >
+                  <div className={rowClass} key={item.id}>
                     <div className="challenge-queue__order">
                       <button
                         type="button"
@@ -388,49 +445,82 @@ export function ChallengeGroupDetail({
                         {game?.name ?? item.gameSlug}
                       </Link>
                       <span className="challenge-queue__status">
-                        {item.status === "current"
-                          ? "▶ Now playing"
-                          : item.status === "done"
-                            ? "✓ Done"
-                            : "Queued"}
+                        {item.plays.length > 0
+                          ? `🎮 ${item.plays
+                              .map((p) => p.profile.display_name)
+                              .join(", ")} Now playing`
+                          : "Queued"}
                       </span>
                     </div>
 
+                    <div className="challenge-queue__members">
+                      {members.map((member) => {
+                        const memberDone = item.completions.some(
+                          (c) => c.userId === member.userId,
+                        );
+                        const memberPlaying = item.plays.some(
+                          (p) => p.userId === member.userId,
+                        );
+                        const stateClass = memberDone
+                          ? " challenge-queue__member-avatar--done"
+                          : memberPlaying
+                            ? " challenge-queue__member-avatar--playing"
+                            : "";
+                        const statusLabel = memberDone
+                          ? " finished this"
+                          : memberPlaying
+                            ? " is playing this"
+                            : " hasn't finished this yet";
+                        return (
+                          <div
+                            key={member.userId}
+                            className={`challenge-queue__member-avatar${stateClass}`}
+                            style={{ background: member.profile.avatar_color }}
+                            title={`${member.profile.display_name}${statusLabel}`}
+                          >
+                            {member.profile.avatar_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={member.profile.avatar_url} alt="" />
+                            ) : (
+                              member.profile.avatar_initial
+                            )}
+                            {memberDone && (
+                              <span
+                                className="challenge-queue__done-badge"
+                                aria-hidden="true"
+                              >
+                                ✓
+                              </span>
+                            )}
+                            {!memberDone && memberPlaying && (
+                              <span
+                                className="challenge-queue__playing-badge"
+                                aria-hidden="true"
+                              >
+                                🎮
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
                     <div className="challenge-queue__actions">
-                      {item.status === "current" ? (
-                        <button
-                          type="button"
-                          className="challenge-queue__action"
-                          onClick={() => handleSetQueued(item.id)}
-                        >
-                          Stop playing
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="challenge-queue__action"
-                          onClick={() => handleSetCurrent(item.id)}
-                        >
-                          Play now
-                        </button>
-                      )}
-                      {item.status === "done" ? (
-                        <button
-                          type="button"
-                          className="challenge-queue__action"
-                          onClick={() => handleSetQueued(item.id)}
-                        >
-                          Undo done
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="challenge-queue__action"
-                          onClick={() => handleMarkDone(item.id)}
-                        >
-                          Mark done
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        className="challenge-queue__action"
+                        onClick={() => handleTogglePlaying(item.id)}
+                      >
+                        {isPlayingByMe ? "Stop playing" : "Play now"}
+                      </button>
+                      <button
+                        type="button"
+                        className="challenge-queue__action"
+                        onClick={() => handleToggleDone(item.id)}
+                      >
+                        {isDoneByMe ? "Undo done" : "Mark done"}
+                      </button>
+
                       <button
                         type="button"
                         className="wishlist-item__remove"
@@ -508,7 +598,16 @@ export function ChallengeGroupDetail({
                   <div className="friend-row__names">
                     <span className="friend-row__display-name">
                       {member.profile.display_name}
-                      {member.userId === group.ownerId ? " 👑" : ""}
+                      {member.userId === group.ownerId ? (
+                        <Image
+                          src="/icons/crown.png"
+                          alt="Owner"
+                          width={16}
+                          height={16}
+                          className="friend-row__crown"
+                          unoptimized
+                        />
+                      ) : null}
                     </span>
                     <span className="friend-row__username">
                       @{member.profile.username}

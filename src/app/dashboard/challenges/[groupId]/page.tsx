@@ -48,7 +48,7 @@ export default async function ChallengeGroupPage({ params }: Props) {
     await Promise.all([
       supabase
         .from("challenge_items")
-        .select("id, game_slug, status, position, added_by")
+        .select("id, game_slug, position, added_by")
         .eq("group_id", groupId)
         .order("position", { ascending: true }),
       supabase
@@ -64,6 +64,46 @@ export default async function ChallengeGroupPage({ params }: Props) {
         .eq("status", "accepted")
         .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`),
     ]);
+
+  const itemIds = (items ?? []).map((item) => item.id as string);
+  const [{ data: completionRows }, { data: playRows }] = itemIds.length
+    ? await Promise.all([
+        supabase
+          .from("challenge_item_completions")
+          .select(`item_id, user_id, profile:profiles(${PROFILE_FIELDS})`)
+          .in("item_id", itemIds),
+        supabase
+          .from("challenge_item_plays")
+          .select(`item_id, user_id, profile:profiles(${PROFILE_FIELDS})`)
+          .in("item_id", itemIds),
+      ])
+    : [{ data: [] as never[] }, { data: [] as never[] }];
+
+  const completionsByItem = new Map<
+    string,
+    { userId: string; profile: ProfileSummary }[]
+  >();
+  for (const row of completionRows ?? []) {
+    const list = completionsByItem.get(row.item_id as string) ?? [];
+    list.push({
+      userId: row.user_id as string,
+      profile: row.profile as unknown as ProfileSummary,
+    });
+    completionsByItem.set(row.item_id as string, list);
+  }
+
+  const playsByItem = new Map<
+    string,
+    { userId: string; profile: ProfileSummary }[]
+  >();
+  for (const row of playRows ?? []) {
+    const list = playsByItem.get(row.item_id as string) ?? [];
+    list.push({
+      userId: row.user_id as string,
+      profile: row.profile as unknown as ProfileSummary,
+    });
+    playsByItem.set(row.item_id as string, list);
+  }
 
   const members = (memberRows ?? [])
     .filter((row) => row.status === "accepted")
@@ -92,8 +132,9 @@ export default async function ChallengeGroupPage({ params }: Props) {
   const initialItems = (items ?? []).map((item) => ({
     id: item.id as string,
     gameSlug: item.game_slug as string,
-    status: item.status as "queued" | "current" | "done",
     position: item.position as number,
+    completions: completionsByItem.get(item.id as string) ?? [],
+    plays: playsByItem.get(item.id as string) ?? [],
   }));
 
   return (

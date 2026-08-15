@@ -792,16 +792,6 @@
   text-overflow: ellipsis;
 }
 
-.dashboard-account__game {
-  margin-top: 4px;
-  font-family: var(--font-pixel);
-  font-size: 10px;
-  color: var(--fog);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .dashboard-account > form {
   display: contents;
 }
@@ -1435,11 +1425,6 @@
   opacity: 0.6;
 }
 
-.game-hero__active-btn--active {
-  color: var(--ink);
-  background: var(--yellow);
-}
-
 .game-hero__active-error {
   margin-top: 8px;
   font-family: var(--font-mono);
@@ -1452,7 +1437,7 @@
   max-width: 320px;
 }
 
-.game-hero__progress label {
+.game-hero__progress-label {
   display: block;
   margin-bottom: 6px;
   font-family: var(--font-mono);
@@ -1460,9 +1445,18 @@
   color: var(--fog);
 }
 
-.game-hero__progress input[type="range"] {
+.game-hero__progress-bar {
+  display: block;
   width: 100%;
-  accent-color: var(--yellow);
+  height: 6px;
+  background: var(--charcoal-line);
+  overflow: hidden;
+}
+
+.game-hero__progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--yellow);
 }
 
 .game-hero__sync {
@@ -1620,6 +1614,11 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.profile-header__flag {
+  font-size: 24px;
+  line-height: 1;
 }
 
 .profile-badges {
@@ -2123,6 +2122,31 @@
   font-size: 13px;
   color: var(--fog);
   line-height: 1.6;
+}
+
+.import-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--fog);
+}
+
+.import-modal__date {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  padding: 10px 12px;
+  background: var(--charcoal);
+  border: 2px solid var(--charcoal-line);
+  color: var(--paper);
+}
+
+.import-modal__date:focus-visible {
+  outline: none;
+  border-color: var(--yellow);
 }
 
 .import-modal__form {
@@ -3017,6 +3041,15 @@
   white-space: nowrap;
 }
 
+.friend-row__crown {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  vertical-align: middle;
+  image-rendering: pixelated;
+}
+
 .friend-row__username {
   font-family: var(--font-mono);
   font-size: 12px;
@@ -3092,16 +3125,6 @@ a.dashboard-panel__title:hover {
 .challenge-card__meta {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--fog);
-}
-
-.challenge-card__now {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--yellow);
-}
-
-.challenge-card__now--empty {
   color: var(--fog);
 }
 
@@ -3270,6 +3293,125 @@ a.dashboard-panel__title:hover {
 .challenge-queue__action:hover {
   border-color: var(--yellow);
   color: var(--yellow);
+}
+
+.challenge-card__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.challenge-card__avatars {
+  display: flex;
+  align-items: center;
+}
+
+.challenge-card__avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-pixel);
+  font-weight: 700;
+  font-size: 10px;
+  color: var(--ink);
+  border: 2px solid var(--charcoal-deep);
+}
+
+.challenge-card__avatar + .challenge-card__avatar {
+  margin-left: -10px;
+}
+
+.challenge-card__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.challenge-card__avatar--more {
+  background: var(--yellow);
+}
+
+.challenge-queue__members {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.challenge-queue__member-avatar {
+  position: relative;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-pixel);
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--ink);
+  opacity: 0.4;
+  filter: grayscale(1);
+  transition:
+    opacity 0.15s ease,
+    filter 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.challenge-queue__member-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.challenge-queue__member-avatar--done {
+  opacity: 1;
+  filter: none;
+  box-shadow: 0 0 0 2px #3ddc72;
+}
+
+.challenge-queue__member-avatar--playing {
+  opacity: 1;
+  filter: none;
+  box-shadow: 0 0 0 2px var(--yellow);
+}
+
+.challenge-queue__done-badge,
+.challenge-queue__playing-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  border: 2px solid var(--charcoal);
+}
+
+.challenge-queue__playing-badge {
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+}
+
+.challenge-queue__done-badge {
+  background: #3ddc72;
+}
+
+.challenge-queue__playing-badge {
+  background: var(--yellow);
 }
 
 .game-stats-panel {

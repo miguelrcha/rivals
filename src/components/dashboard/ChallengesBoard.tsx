@@ -10,7 +10,15 @@ import { GAMES } from "@/lib/games";
 type ChallengeItem = {
   id: string;
   gameSlug: string;
-  status: "queued" | "current" | "done";
+};
+
+type ProfileSummary = {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_color: string;
+  avatar_initial: string;
+  avatar_url: string | null;
 };
 
 type ChallengeGroup = {
@@ -19,6 +27,7 @@ type ChallengeGroup = {
   isOwner: boolean;
   inviteCode: string;
   memberCount: number;
+  members: ProfileSummary[];
   items: ChallengeItem[];
 };
 
@@ -120,6 +129,7 @@ export function ChallengesBoard({
         isOwner: true,
         inviteCode: data.invite_code,
         memberCount: 1,
+        members: [],
         items: [],
       },
     ]);
@@ -277,10 +287,8 @@ function ChallengeGroupCard({
   covers: Record<string, string>;
   onLeaveOrDelete: () => void;
 }) {
-  const currentItem = group.items.find((item) => item.status === "current");
-  const currentGame = currentItem
-    ? GAMES.find((g) => g.slug === currentItem.gameSlug)
-    : null;
+  const shownMembers = group.members.slice(0, 3);
+  const extraMemberCount = group.memberCount - shownMembers.length;
 
   return (
     <div className="dashboard-panel wishlist-group">
@@ -288,15 +296,41 @@ function ChallengeGroupCard({
         <Link href={`/dashboard/challenges/${group.id}`} className="dashboard-panel__title">
           {group.name.toUpperCase()}
         </Link>
-        <button
-          type="button"
-          className="wishlist-group__delete"
-          onClick={onLeaveOrDelete}
-          aria-label={group.isOwner ? `Delete ${group.name}` : `Leave ${group.name}`}
-          title={group.isOwner ? "Delete challenge" : "Leave challenge"}
-        >
-          ✕
-        </button>
+        <div className="challenge-card__header-actions">
+          {group.members.length > 0 && (
+            <div className="challenge-card__avatars">
+              {shownMembers.map((member) => (
+                <div
+                  key={member.id}
+                  className="challenge-card__avatar"
+                  style={{ background: member.avatar_color }}
+                  title={member.display_name}
+                >
+                  {member.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={member.avatar_url} alt="" />
+                  ) : (
+                    member.avatar_initial
+                  )}
+                </div>
+              ))}
+              {extraMemberCount > 0 && (
+                <div className="challenge-card__avatar challenge-card__avatar--more">
+                  +{extraMemberCount}
+                </div>
+              )}
+            </div>
+          )}
+          <button
+            type="button"
+            className="wishlist-group__delete"
+            onClick={onLeaveOrDelete}
+            aria-label={group.isOwner ? `Delete ${group.name}` : `Leave ${group.name}`}
+            title={group.isOwner ? "Delete challenge" : "Leave challenge"}
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       <div className="challenge-card__body">
@@ -304,14 +338,6 @@ function ChallengeGroupCard({
           {group.memberCount} member{group.memberCount === 1 ? "" : "s"} ·{" "}
           {group.items.length} game{group.items.length === 1 ? "" : "s"}
         </p>
-
-        {currentGame ? (
-          <p className="challenge-card__now">▶ NOW PLAYING: {currentGame.name}</p>
-        ) : (
-          <p className="challenge-card__now challenge-card__now--empty">
-            No game selected yet
-          </p>
-        )}
 
         {group.items.length > 0 && (
           <div className="challenge-card__thumbs">
