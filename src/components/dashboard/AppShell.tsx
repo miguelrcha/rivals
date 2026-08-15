@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { signOut } from "@/app/auth/actions";
 import { createClient } from "@/lib/supabase/server";
+import { StatusDot } from "@/components/StatusDot";
 import { MobileNav } from "./MobileNav";
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
@@ -18,11 +19,19 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   } | null = null;
 
   if (user) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("username, display_name, avatar_color, avatar_initial, avatar_url")
-      .eq("id", user.id)
-      .single();
+    // Heartbeat for the "friends online" panel — cheap enough to run on
+    // every dashboard page load alongside the profile fetch.
+    const [{ data }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("username, display_name, avatar_color, avatar_initial, avatar_url")
+        .eq("id", user.id)
+        .single(),
+      supabase
+        .from("profiles")
+        .update({ last_active_at: new Date().toISOString() })
+        .eq("id", user.id),
+    ]);
     profile = data;
   }
 
@@ -137,17 +146,20 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
                   href={`/users/${profile.username}`}
                   className="dashboard-account__link"
                 >
-                  <div
-                    className="dashboard-account__avatar"
-                    style={{ background: profile.avatar_color }}
-                    aria-hidden="true"
-                  >
-                    {profile.avatar_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={profile.avatar_url} alt="" />
-                    ) : (
-                      profile.avatar_initial
-                    )}
+                  <div className="avatar-status">
+                    <div
+                      className="dashboard-account__avatar"
+                      style={{ background: profile.avatar_color }}
+                      aria-hidden="true"
+                    >
+                      {profile.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={profile.avatar_url} alt="" />
+                      ) : (
+                        profile.avatar_initial
+                      )}
+                    </div>
+                    <StatusDot online onSidebar />
                   </div>
 
                   <div className="dashboard-account__info">

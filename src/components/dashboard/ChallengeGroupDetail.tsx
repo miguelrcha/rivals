@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { GAMES } from "@/lib/games";
 
@@ -74,10 +74,33 @@ export function ChallengeGroupDetail({
   const [selectedSlug, setSelectedSlug] = useState("");
   const [error, setError] = useState("");
   const [codeCopied, setCodeCopied] = useState(false);
+  const [isGamePickerOpen, setIsGamePickerOpen] = useState(false);
+  const [gameSearch, setGameSearch] = useState("");
+  const gamePickerRef = useRef<HTMLDivElement>(null);
 
   const addedSlugs = new Set(items.map((item) => item.gameSlug));
   const availableGames = GAMES.filter((game) => !addedSlugs.has(game.slug));
   const myProfile = members.find((m) => m.userId === userId)?.profile;
+  const selectedGame = availableGames.find((g) => g.slug === selectedSlug);
+  const filteredGames = availableGames.filter((game) =>
+    game.name.toLowerCase().includes(gameSearch.trim().toLowerCase()),
+  );
+
+  useEffect(() => {
+    if (!isGamePickerOpen) return;
+
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        gamePickerRef.current &&
+        !gamePickerRef.current.contains(event.target as Node)
+      ) {
+        setIsGamePickerOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isGamePickerOpen]);
 
   async function handleCopyCode() {
     try {
@@ -539,18 +562,86 @@ export function ChallengeGroupDetail({
 
           {availableGames.length > 0 && (
             <form className="wishlist-add-form" onSubmit={handleAddGame}>
-              <select
-                value={selectedSlug}
-                onChange={(event) => setSelectedSlug(event.target.value)}
-                aria-label="Add a game to the queue"
-              >
-                <option value="">Add a game…</option>
-                {availableGames.map((game) => (
-                  <option key={game.slug} value={game.slug}>
-                    {game.name}
-                  </option>
-                ))}
-              </select>
+              <div className="game-picker" ref={gamePickerRef}>
+                <button
+                  type="button"
+                  className="game-picker__trigger"
+                  onClick={() => {
+                    setIsGamePickerOpen((open) => !open);
+                    setGameSearch("");
+                  }}
+                  aria-haspopup="listbox"
+                  aria-expanded={isGamePickerOpen}
+                >
+                  <span className="game-picker__trigger-label">
+                    {selectedGame ? selectedGame.name : "Add a game…"}
+                  </span>
+                  <span className="game-picker__chevron" aria-hidden="true">
+                    ▼
+                  </span>
+                </button>
+
+                {isGamePickerOpen && (
+                  <div className="game-picker__panel">
+                    <input
+                      type="text"
+                      className="game-picker__search"
+                      placeholder="Search games…"
+                      value={gameSearch}
+                      onChange={(event) => setGameSearch(event.target.value)}
+                      autoFocus
+                    />
+                    <div className="game-picker__list" role="listbox">
+                      {filteredGames.length === 0 ? (
+                        <p className="game-picker__empty">No games match.</p>
+                      ) : (
+                        filteredGames.map((game) => {
+                          const cover = covers[game.slug];
+                          return (
+                            <button
+                              type="button"
+                              key={game.slug}
+                              className={`game-picker__item${
+                                game.slug === selectedSlug
+                                  ? " game-picker__item--selected"
+                                  : ""
+                              }`}
+                              onClick={() => {
+                                setSelectedSlug(game.slug);
+                                setIsGamePickerOpen(false);
+                              }}
+                              role="option"
+                              aria-selected={game.slug === selectedSlug}
+                            >
+                              <span
+                                className="game-picker__swatch"
+                                style={{ background: game.color }}
+                              >
+                                {cover ? (
+                                  <Image
+                                    src={cover}
+                                    alt=""
+                                    fill
+                                    sizes="28px"
+                                    className="game-picker__cover"
+                                  />
+                                ) : (
+                                  <span aria-hidden="true">
+                                    {game.shortName}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="game-picker__name">
+                                {game.name}
+                              </span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
               <button type="submit" disabled={!selectedSlug}>
                 Add
               </button>

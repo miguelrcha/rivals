@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 const PROFILE_FIELDS =
-  "id, username, display_name, avatar_color, avatar_initial, avatar_url";
+  "id, username, display_name, avatar_color, avatar_initial, avatar_url, last_active_at";
 
 export default async function FriendsPage() {
   const supabase = await createClient();
@@ -91,4 +91,5 @@ type ProfileSummary = {
   avatar_color: string;
   avatar_initial: string;
   avatar_url: string | null;
+  last_active_at: string | null;
 };

@@ -863,3 +863,328 @@ drop policy if exists "Members can unmark themselves playing" on public.challeng
 create policy "Members can unmark themselves playing"
   on public.challenge_item_plays for delete
   using (user_id = auth.uid());
+
+-- ============================================================
+-- migrations/019_active_game_party.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+
+alter table public.profiles add column if not exists active_game_party jsonb not null default '[]';
+
+-- ============================================================
+-- migrations/020_seed_all_games.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+
+-- The initial seed (see the `insert into public.games` block near the top
+-- of schema.sql) only covered 4 of the ~38 games listed in
+-- src/lib/games.ts. Any other game had no row here, so `games.id` was null
+-- for it — which meant registering a run for it silently skipped the
+-- `runs` insert in SetActiveGameButton (see gameId check there), making
+-- the "Runs" stat on that game's page stay stuck at 0 forever. This backfills
+-- the rest of the catalog so every game can log runs. Safe to re-run,
+-- standalone from schema.sql — generated from src/lib/games.ts to keep the
+-- data in sync (no manual transcription).
+
+insert into public.games (slug, name, short_name, color, platform, description)
+values
+  ('pokemon-red', 'Pokémon Red', 'RED', '#c0392b', 'Game Boy', 'The one that started the crew''s rivalry.'),
+  ('pokemon-crystal', 'Pokémon Crystal', 'CRY', '#3b8fc4', 'Game Boy Color', 'Johto''s night-and-day gimmick, speedran to death.'),
+  ('pokemon-emerald', 'Pokémon Emerald', 'EMR', '#2e9e5b', 'Game Boy Advance', 'Hoenn''s hardest category, glitchless only.'),
+  ('pokemon-fire-red', 'Pokémon FireRed', 'FR', '#e0703f', 'Game Boy Advance', 'Kanto remake — same route, faster shoes.'),
+  ('pokemon-blue', 'Pokémon Blue', 'BLU', '#2f6fb0', 'Game Boy', 'Same Kanto, mirrored sprites, eternal debate over which starter is faster.'),
+  ('pokemon-green', 'Pokémon Green', 'GRN', '#3f9d5c', 'Game Boy', 'The original Japan-only release, before Red and Blue went west.'),
+  ('pokemon-yellow', 'Pokémon Yellow', 'YEL', '#e8c800', 'Game Boy', 'Pikachu follows you around. The route barely changes.'),
+  ('pokemon-gold', 'Pokémon Gold', 'GLD', '#c9a227', 'Game Boy Color', 'Two regions in one cartridge, and twice the route to learn.'),
+  ('pokemon-silver', 'Pokémon Silver', 'SLV', '#9aa0a6', 'Game Boy Color', 'Gold''s twin, minus the Celebi event, plus the same grind.'),
+  ('pokemon-ruby', 'Pokémon Ruby', 'RUB', '#a4243b', 'Game Boy Advance', 'Hoenn''s team-based storyline, raced without a Wallace Cup.'),
+  ('pokemon-sapphire', 'Pokémon Sapphire', 'SAP', '#2467a8', 'Game Boy Advance', 'Ruby''s mirror, Team Aqua edition.'),
+  ('pokemon-leaf-green', 'Pokémon LeafGreen', 'LG', '#4a9c5d', 'Game Boy Advance', 'FireRed''s twin — same Kanto remake, green box this time.'),
+  ('pokemon-diamond', 'Pokémon Diamond', 'DIA', '#5c7cba', 'Nintendo DS', 'Sinnoh''s slow menus make every second count double.'),
+  ('pokemon-pearl', 'Pokémon Pearl', 'PRL', '#d97a9c', 'Nintendo DS', 'Diamond''s counterpart, same Sinnoh slog.'),
+  ('pokemon-platinum', 'Pokémon Platinum', 'PLT', '#7d8b99', 'Nintendo DS', 'The Distortion World adds a whole extra dungeon to route.'),
+  ('pokemon-heartgold', 'Pokémon HeartGold', 'HG', '#d4a017', 'Nintendo DS', 'Gold remade with a Pokéwalker nobody speedruns with.'),
+  ('pokemon-soulsilver', 'Pokémon SoulSilver', 'SS', '#b6bcc4', 'Nintendo DS', 'Silver remade, Lyra''s hairstyle unchanged.'),
+  ('pokemon-black', 'Pokémon Black', 'BLK', '#2b2b30', 'Nintendo DS', 'All-new Pokémon, all-new Unova, all-new route to learn from scratch.'),
+  ('pokemon-white', 'Pokémon White', 'WHT', '#e6e6ea', 'Nintendo DS', 'Black''s counterpart — different version-exclusive route tweaks.'),
+  ('pokemon-black-2', 'Pokémon Black 2', 'B2', '#3a3a90', 'Nintendo DS', 'A true sequel — new gyms, new route, same region.'),
+  ('pokemon-white-2', 'Pokémon White 2', 'W2', '#c99a3f', 'Nintendo DS', 'Black 2''s twin, with its own gym leader shuffle.'),
+  ('pokemon-x', 'Pokémon X', 'X', '#2a6fbd', 'Nintendo 3DS', 'The jump to 3D — Kalos routing is all about the bike.'),
+  ('pokemon-y', 'Pokémon Y', 'Y', '#c0334d', 'Nintendo 3DS', 'X''s mirror, same Kalos, same bike-heavy route.'),
+  ('pokemon-omega-ruby', 'Pokémon Omega Ruby', 'OR', '#c62840', 'Nintendo 3DS', 'Hoenn remade in 3D, DexNav grinding optional for a race.'),
+  ('pokemon-alpha-sapphire', 'Pokémon Alpha Sapphire', 'AS', '#2874b5', 'Nintendo 3DS', 'Omega Ruby''s counterpart, same remade Hoenn.'),
+  ('pokemon-sun', 'Pokémon Sun', 'SUN', '#e08a2e', 'Nintendo 3DS', 'Trials instead of gyms — Alola resets the whole route metagame.'),
+  ('pokemon-moon', 'Pokémon Moon', 'MOON', '#5b4b9e', 'Nintendo 3DS', 'Sun''s nighttime counterpart, same island trials.'),
+  ('pokemon-ultra-sun', 'Pokémon Ultra Sun', 'USUN', '#d9622b', 'Nintendo 3DS', 'Alola again, with Ultra Wormholes and extra cutscenes to skip.'),
+  ('pokemon-ultra-moon', 'Pokémon Ultra Moon', 'UMOON', '#4b3a8f', 'Nintendo 3DS', 'Ultra Sun''s counterpart, same expanded Alola.'),
+  ('pokemon-lets-go-pikachu', 'Pokémon Let''s Go, Pikachu!', 'LGP', '#e8c800', 'Nintendo Switch', 'Kanto again, catch-''em-all controls, no random encounters to route around.'),
+  ('pokemon-lets-go-eevee', 'Pokémon Let''s Go, Eevee!', 'LGE', '#a9754f', 'Nintendo Switch', 'Let''s Go Pikachu''s counterpart, Eevee riding shotgun instead.'),
+  ('pokemon-sword', 'Pokémon Sword', 'SWD', '#00a3ad', 'Nintendo Switch', 'Galar''s stadiums and Dynamax fights, routed for speed.'),
+  ('pokemon-shield', 'Pokémon Shield', 'SHD', '#a13a8f', 'Nintendo Switch', 'Sword''s counterpart, same Galar, different exclusives.'),
+  ('pokemon-brilliant-diamond', 'Pokémon Brilliant Diamond', 'BD', '#6f93c9', 'Nintendo Switch', 'Diamond remade chibi-style, Underground digging skipped entirely.'),
+  ('pokemon-shining-pearl', 'Pokémon Shining Pearl', 'SP', '#e08fae', 'Nintendo Switch', 'Brilliant Diamond''s counterpart, same remade Sinnoh.'),
+  ('pokemon-legends-arceus', 'Pokémon Legends: Arceus', 'PLA', '#c9b28a', 'Nintendo Switch', 'Open-zone Hisui with no trainer battles slowing the route down.'),
+  ('pokemon-scarlet', 'Pokémon Scarlet', 'SCR', '#c0392b', 'Nintendo Switch', 'Fully open-world Paldea — three storylines, one race clock.'),
+  ('pokemon-violet', 'Pokémon Violet', 'VIO', '#6a4c9c', 'Nintendo Switch', 'Scarlet''s counterpart, same open Paldea.')
+on conflict (slug) do nothing;
+
+insert into public.categories (game_id, name)
+select g.id, c.name
+from (values
+  ('pokemon-red', 'Any%'),
+  ('pokemon-red', 'Glitchless'),
+  ('pokemon-crystal', 'Any%'),
+  ('pokemon-crystal', '100%'),
+  ('pokemon-emerald', 'Any%'),
+  ('pokemon-emerald', 'Glitchless'),
+  ('pokemon-fire-red', 'Any%'),
+  ('pokemon-fire-red', 'Randomizer'),
+  ('pokemon-blue', 'Any%'),
+  ('pokemon-blue', 'Glitchless'),
+  ('pokemon-green', 'Any%'),
+  ('pokemon-yellow', 'Any%'),
+  ('pokemon-yellow', 'Glitchless'),
+  ('pokemon-gold', 'Any%'),
+  ('pokemon-gold', 'Glitchless'),
+  ('pokemon-silver', 'Any%'),
+  ('pokemon-silver', 'Glitchless'),
+  ('pokemon-ruby', 'Any%'),
+  ('pokemon-ruby', 'Glitchless'),
+  ('pokemon-sapphire', 'Any%'),
+  ('pokemon-sapphire', 'Glitchless'),
+  ('pokemon-leaf-green', 'Any%'),
+  ('pokemon-leaf-green', 'Randomizer'),
+  ('pokemon-diamond', 'Any%'),
+  ('pokemon-diamond', 'Glitchless'),
+  ('pokemon-pearl', 'Any%'),
+  ('pokemon-pearl', 'Glitchless'),
+  ('pokemon-platinum', 'Any%'),
+  ('pokemon-platinum', 'Glitchless'),
+  ('pokemon-heartgold', 'Any%'),
+  ('pokemon-heartgold', 'Glitchless'),
+  ('pokemon-soulsilver', 'Any%'),
+  ('pokemon-soulsilver', 'Glitchless'),
+  ('pokemon-black', 'Any%'),
+  ('pokemon-black', 'Glitchless'),
+  ('pokemon-white', 'Any%'),
+  ('pokemon-white', 'Glitchless'),
+  ('pokemon-black-2', 'Any%'),
+  ('pokemon-black-2', 'Glitchless'),
+  ('pokemon-white-2', 'Any%'),
+  ('pokemon-white-2', 'Glitchless'),
+  ('pokemon-x', 'Any%'),
+  ('pokemon-x', 'Glitchless'),
+  ('pokemon-y', 'Any%'),
+  ('pokemon-y', 'Glitchless'),
+  ('pokemon-omega-ruby', 'Any%'),
+  ('pokemon-omega-ruby', 'Glitchless'),
+  ('pokemon-alpha-sapphire', 'Any%'),
+  ('pokemon-alpha-sapphire', 'Glitchless'),
+  ('pokemon-sun', 'Any%'),
+  ('pokemon-sun', 'Glitchless'),
+  ('pokemon-moon', 'Any%'),
+  ('pokemon-moon', 'Glitchless'),
+  ('pokemon-ultra-sun', 'Any%'),
+  ('pokemon-ultra-sun', 'Glitchless'),
+  ('pokemon-ultra-moon', 'Any%'),
+  ('pokemon-ultra-moon', 'Glitchless'),
+  ('pokemon-lets-go-pikachu', 'Any%'),
+  ('pokemon-lets-go-eevee', 'Any%'),
+  ('pokemon-sword', 'Any%'),
+  ('pokemon-sword', 'Glitchless'),
+  ('pokemon-shield', 'Any%'),
+  ('pokemon-shield', 'Glitchless'),
+  ('pokemon-brilliant-diamond', 'Any%'),
+  ('pokemon-brilliant-diamond', 'Glitchless'),
+  ('pokemon-shining-pearl', 'Any%'),
+  ('pokemon-shining-pearl', 'Glitchless'),
+  ('pokemon-legends-arceus', 'Any%'),
+  ('pokemon-scarlet', 'Any%'),
+  ('pokemon-scarlet', 'Glitchless'),
+  ('pokemon-violet', 'Any%'),
+  ('pokemon-violet', 'Glitchless')
+) as c(slug, name)
+join public.games g on g.slug = c.slug
+on conflict (game_id, name) do nothing;
+
+-- ============================================================
+-- migrations/021_game_comments_and_screenshots.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+
+-- Comments and screenshots tabs on the game page. game_slug is a plain
+-- text column (not a FK into public.games) — same reasoning as
+-- challenge_items: it matches src/lib/games.ts, and not every catalog game
+-- necessarily has a public.games row (see migrations/020_seed_all_games.sql
+-- for what happens when that assumption breaks).
+
+-- ============ game comments (one level of replies) ============
+
+create table if not exists public.game_comments (
+  id uuid primary key default gen_random_uuid(),
+  game_slug text not null,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  parent_id uuid references public.game_comments (id) on delete cascade,
+  body text not null check (char_length(trim(body)) > 0 and char_length(body) <= 2000),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists game_comments_game_slug_idx on public.game_comments (game_slug);
+
+alter table public.game_comments enable row level security;
+
+drop policy if exists "Comments are viewable by everyone" on public.game_comments;
+create policy "Comments are viewable by everyone"
+  on public.game_comments for select
+  using (true);
+
+drop policy if exists "Users can post comments" on public.game_comments;
+create policy "Users can post comments"
+  on public.game_comments for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can delete their own comments" on public.game_comments;
+create policy "Users can delete their own comments"
+  on public.game_comments for delete
+  using (auth.uid() = user_id);
+
+-- ============ game comment likes ============
+
+create table if not exists public.game_comment_likes (
+  comment_id uuid not null references public.game_comments (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (comment_id, user_id)
+);
+
+alter table public.game_comment_likes enable row level security;
+
+drop policy if exists "Comment likes are viewable by everyone" on public.game_comment_likes;
+create policy "Comment likes are viewable by everyone"
+  on public.game_comment_likes for select
+  using (true);
+
+drop policy if exists "Users can like comments" on public.game_comment_likes;
+create policy "Users can like comments"
+  on public.game_comment_likes for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can unlike their own comment likes" on public.game_comment_likes;
+create policy "Users can unlike their own comment likes"
+  on public.game_comment_likes for delete
+  using (auth.uid() = user_id);
+
+-- ============ game screenshots ============
+
+create table if not exists public.game_screenshots (
+  id uuid primary key default gen_random_uuid(),
+  game_slug text not null,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  image_path text not null,
+  caption text check (char_length(caption) <= 500),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists game_screenshots_game_slug_idx on public.game_screenshots (game_slug);
+
+alter table public.game_screenshots enable row level security;
+
+drop policy if exists "Screenshots are viewable by everyone" on public.game_screenshots;
+create policy "Screenshots are viewable by everyone"
+  on public.game_screenshots for select
+  using (true);
+
+drop policy if exists "Users can post screenshots" on public.game_screenshots;
+create policy "Users can post screenshots"
+  on public.game_screenshots for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can delete their own screenshots" on public.game_screenshots;
+create policy "Users can delete their own screenshots"
+  on public.game_screenshots for delete
+  using (auth.uid() = user_id);
+
+-- ============ game screenshot likes ============
+
+create table if not exists public.game_screenshot_likes (
+  screenshot_id uuid not null references public.game_screenshots (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (screenshot_id, user_id)
+);
+
+alter table public.game_screenshot_likes enable row level security;
+
+drop policy if exists "Screenshot likes are viewable by everyone" on public.game_screenshot_likes;
+create policy "Screenshot likes are viewable by everyone"
+  on public.game_screenshot_likes for select
+  using (true);
+
+drop policy if exists "Users can like screenshots" on public.game_screenshot_likes;
+create policy "Users can like screenshots"
+  on public.game_screenshot_likes for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can unlike their own screenshot likes" on public.game_screenshot_likes;
+create policy "Users can unlike their own screenshot likes"
+  on public.game_screenshot_likes for delete
+  using (auth.uid() = user_id);
+
+-- ============ storage bucket for screenshot images ============
+-- Files are stored under `{user_id}/{game_slug}-...` so the policies below
+-- can check the folder name against auth.uid(), same pattern as
+-- profile-media.
+
+insert into storage.buckets (id, name, public)
+values ('game-screenshots', 'game-screenshots', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Screenshot images are publicly readable" on storage.objects;
+create policy "Screenshot images are publicly readable"
+  on storage.objects for select
+  using (bucket_id = 'game-screenshots');
+
+drop policy if exists "Users can upload their own screenshot images" on storage.objects;
+create policy "Users can upload their own screenshot images"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'game-screenshots'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "Users can delete their own screenshot images" on storage.objects;
+create policy "Users can delete their own screenshot images"
+  on storage.objects for delete
+  using (
+    bucket_id = 'game-screenshots'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- ============================================================
+-- migrations/022_last_active_at.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+
+alter table public.profiles add column if not exists last_active_at timestamptz;
+
+-- ============================================================
+-- migrations/023_seed_legends_za.sql
+-- Also runnable on its own — see that file for notes.
+-- ============================================================
+
+-- Adds Pokémon Legends: Z-A to the games catalog (was missing from
+-- migrations/020_seed_all_games.sql because it wasn't in src/lib/games.ts
+-- yet at the time). Safe to re-run, standalone from schema.sql.
+
+insert into public.games (slug, name, short_name, color, platform, description)
+values
+  ('pokemon-legends-za', 'Pokémon Legends: Z-A', 'Z-A', '#1c1c2e', 'Nintendo Switch', 'Lumiose City reimagined — Mega Evolution takes center stage in real time.')
+on conflict (slug) do nothing;
+
+insert into public.categories (game_id, name)
+select g.id, c.name
+from (values
+  ('pokemon-legends-za', 'Any%')
+) as c(slug, name)
+join public.games g on g.slug = c.slug
+on conflict (game_id, name) do nothing;

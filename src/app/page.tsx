@@ -3,6 +3,8 @@ import { AppShell } from "@/components/dashboard/AppShell";
 import { SupporterBanner } from "@/components/dashboard/SupporterBanner";
 import { SiteSearch } from "@/components/dashboard/SiteSearch";
 import { LatestRuns } from "@/components/dashboard/LatestRuns";
+import { YourChallenges } from "@/components/dashboard/YourChallenges";
+import { FriendsOnline } from "@/components/dashboard/FriendsOnline";
 import { CommunityNews } from "@/components/dashboard/CommunityNews";
 
 export const metadata: Metadata = {
@@ -17,7 +19,11 @@ export default function HomePage() {
       <SiteSearch />
 
       <div className="dashboard-columns">
-        <LatestRuns />
+        <div className="dashboard-columns__main">
+          <LatestRuns />
+          <YourChallenges />
+          <FriendsOnline />
+        </div>
         <CommunityNews />
       </div>
     </AppShell>

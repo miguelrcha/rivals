@@ -48,6 +48,46 @@ const PLAYER_NAME_OFFSET = 0x000; // SaveBlock2.playerName
 const PLAYER_NAME_MAX_LENGTH = 7; // PLAYER_NAME_LENGTH
 const STRING_TERMINATOR = 0xff; // Gen III end-of-string byte
 
+// SaveBlock1 offsets (spans sector ids 1-4, concatenated) — struct SaveBlock1:
+// /*0x0034*/ u8 playerPartyCount;
+// /*0x0038*/ struct Pokemon playerParty[PARTY_SIZE];
+const PARTY_COUNT_OFFSET = 0x034;
+const PARTY_OFFSET = 0x038;
+const PARTY_SIZE = 6;
+
+// struct Pokemon is a 80-byte struct BoxPokemon followed by 20 bytes of
+// battle stats (status, level, mail, current/max HP, stats) — 100 bytes
+// total per party slot.
+const PARTY_MON_SIZE = 100;
+
+// struct BoxPokemon layout (bytes, all little-endian):
+const BOXMON_NICKNAME_OFFSET = 0x008; // u8 nickname[POKEMON_NAME_LENGTH]
+const NICKNAME_MAX_LENGTH = 10; // POKEMON_NAME_LENGTH
+// Bitfield byte holding isBadEgg:1, hasSpecies:1, isEgg:1, blockBoxRS:1 —
+// isEgg is bit index 2.
+const BOXMON_FLAGS_OFFSET = 0x013;
+const BOXMON_CHECKSUM_OFFSET = 0x01c; // u16 checksum
+const BOXMON_SECURE_DATA_OFFSET = 0x020; // 48 bytes, 4x12-byte encrypted substructs
+
+// struct Pokemon fields after the 80-byte BoxPokemon.
+const MON_LEVEL_OFFSET = 84;
+const MON_HP_OFFSET = 86;
+const MON_MAX_HP_OFFSET = 88;
+
+// Growth/Attacks/EVsCondition/Misc substructs are shuffled in memory based
+// on personality % 24. Each row gives the physical word-group index (0-3,
+// each group = 3 u32 words) for [growth, attacks, evCondition, misc] —
+// taken verbatim from GetSubstruct's SUBSTRUCT_CASE table in pokemon.c.
+const SUBSTRUCT_ORDER: readonly (readonly [number, number, number, number])[] =
+  [
+    [0, 1, 2, 3], [0, 1, 3, 2], [0, 2, 1, 3], [0, 3, 1, 2],
+    [0, 2, 3, 1], [0, 3, 2, 1], [1, 0, 2, 3], [1, 0, 3, 2],
+    [2, 0, 1, 3], [3, 0, 1, 2], [2, 0, 3, 1], [3, 0, 2, 1],
+    [1, 2, 0, 3], [1, 3, 0, 2], [2, 1, 0, 3], [3, 1, 0, 2],
+    [2, 3, 0, 1], [3, 2, 0, 1], [1, 2, 3, 0], [1, 3, 2, 0],
+    [2, 1, 3, 0], [3, 1, 2, 0], [2, 3, 1, 0], [3, 2, 1, 0],
+  ];
+
 // Kanto gym badges, in FLAG_BADGE01_GET..FLAG_BADGE08_GET order — bit 0 of
 // the badges byte is Boulder Badge, bit 7 is Earth Badge.
 export const KANTO_BADGE_NAMES = [
@@ -79,6 +119,16 @@ const CHARMAP: Record<number, string> = {
   0xed: "y", 0xee: "z", 0x00: " ",
 };
 
+export type PartyPokemon = {
+  nickname: string;
+  /** National Dex number, or null for the ~25 unused internal slots. */
+  nationalDexNumber: number | null;
+  level: number;
+  isEgg: boolean;
+  currentHp: number;
+  maxHp: number;
+};
+
 export type FireRedSaveStats = {
   playerName: string;
   badgeCount: number;
@@ -88,6 +138,7 @@ export type FireRedSaveStats = {
   playTimeSeconds: number;
   /** 0-100, based on gym badges obtained (out of 8). */
   progress: number;
+  party: PartyPokemon[];
 };
 
 type Sector = { id: number; counter: number; data: Uint8Array };
@@ -170,6 +221,20 @@ export function parseFireRedSave(buffer: ArrayBuffer): FireRedSaveStats | null {
   const seconds = saveBlock2[PLAY_TIME_SECONDS_OFFSET] ?? 0;
   const playTimeSeconds = hours * 3600 + minutes * 60 + seconds;
 
+  const partyCount = Math.min(
+    saveBlock1[PARTY_COUNT_OFFSET] ?? 0,
+    PARTY_SIZE,
+  );
+  const party: PartyPokemon[] = [];
+  for (let i = 0; i < partyCount; i++) {
+    const slotOffset = PARTY_OFFSET + i * PARTY_MON_SIZE;
+    const slot = saveBlock1.slice(slotOffset, slotOffset + PARTY_MON_SIZE);
+    if (slot.length < PARTY_MON_SIZE) continue;
+
+    const mon = decodePartyMon(slot);
+    if (mon) party.push(mon);
+  }
+
   return {
     playerName,
     badgeCount,
@@ -178,17 +243,79 @@ export function parseFireRedSave(buffer: ArrayBuffer): FireRedSaveStats | null {
     pokedexSeen,
     playTimeSeconds,
     progress: Math.round((badgeCount / 8) * 100),
+    party,
   };
 }
 
-function decodePlayerName(bytes: Uint8Array, offset: number): string {
+function decodePlayerName(
+  bytes: Uint8Array,
+  offset: number,
+  maxLength: number = PLAYER_NAME_MAX_LENGTH,
+): string {
   let name = "";
-  for (let i = 0; i < PLAYER_NAME_MAX_LENGTH; i++) {
+  for (let i = 0; i < maxLength; i++) {
     const byte = bytes[offset + i];
     if (byte === undefined || byte === STRING_TERMINATOR) break;
     name += CHARMAP[byte] ?? "?";
   }
   return name;
+}
+
+// Internal FRLG species indices 1-251 line up with the National Dex (Kanto
+// and Johto share the Gen I/II ordering). Hoenn species (National Dex
+// 252-386) were appended after 25 unused "old Unown" slots, so their
+// internal index is offset by +25 (SPECIES_TREECKO = 277 -> Dex #252) —
+// see include/constants/species.h in the decompiled source.
+function speciesIndexToNationalDex(speciesIndex: number): number | null {
+  if (speciesIndex >= 1 && speciesIndex <= 251) return speciesIndex;
+  if (speciesIndex >= 277 && speciesIndex <= 411) return speciesIndex - 25;
+  return null;
+}
+
+// Decrypts and reads one 100-byte party slot (struct Pokemon). Party data is
+// encrypted (unlike the plain SaveBlock1/2 fields above) — see
+// EncryptBoxMon/DecryptBoxMon and GetSubstruct in src/pokemon.c.
+function decodePartyMon(slot: Uint8Array): PartyPokemon | null {
+  const view = new DataView(slot.buffer, slot.byteOffset, slot.byteLength);
+  const personality = view.getUint32(0, true);
+  const otId = view.getUint32(4, true);
+  if (personality === 0 && otId === 0) return null;
+
+  const nickname = decodePlayerName(
+    slot,
+    BOXMON_NICKNAME_OFFSET,
+    NICKNAME_MAX_LENGTH,
+  );
+  const isEgg = ((slot[BOXMON_FLAGS_OFFSET] ?? 0) >> 2 & 1) === 1;
+  const storedChecksum = view.getUint16(BOXMON_CHECKSUM_OFFSET, true);
+
+  // Decrypt the 48-byte secure block (12 u32 words) with personality ^ otId.
+  const words: number[] = [];
+  for (let i = 0; i < 12; i++) {
+    const encrypted = view.getUint32(BOXMON_SECURE_DATA_OFFSET + i * 4, true);
+    words.push((encrypted ^ personality ^ otId) >>> 0);
+  }
+
+  // Checksum = sum of every u16 half-word across all 12 decrypted u32
+  // words, wrapping to 16 bits — validates the decryption key was right.
+  let checksum = 0;
+  for (const word of words) {
+    checksum = (checksum + (word & 0xffff) + (word >>> 16)) & 0xffff;
+  }
+  if (checksum !== storedChecksum) return null;
+
+  const [growthSlot] = SUBSTRUCT_ORDER[personality % 24];
+  const species = words[growthSlot * 3] & 0xffff;
+  if (species === 0) return null;
+
+  return {
+    nickname,
+    nationalDexNumber: speciesIndexToNationalDex(species),
+    level: slot[MON_LEVEL_OFFSET] ?? 0,
+    isEgg,
+    currentHp: view.getUint16(MON_HP_OFFSET, true),
+    maxHp: view.getUint16(MON_MAX_HP_OFFSET, true),
+  };
 }
 
 function concatBytes(parts: Uint8Array[]): Uint8Array {

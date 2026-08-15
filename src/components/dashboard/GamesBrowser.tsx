@@ -10,12 +10,20 @@ const PLATFORMS = Array.from(new Set(GAMES.map((game) => game.platform)));
 
 type SortKey = "players" | "name" | "year";
 
+function racerCountFor(
+  game: { slug: string },
+  racerCounts: Record<string, number>,
+) {
+  return racerCounts[game.slug] ?? 0;
+}
+
 export function GamesBrowser({ banner }: { banner: ReactNode }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [platform, setPlatform] = useState("all");
   const [sort, setSort] = useState<SortKey>("players");
   const [covers, setCovers] = useState<Record<string, string>>({});
+  const [racerCounts, setRacerCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -27,10 +35,18 @@ export function GamesBrowser({ banner }: { banner: ReactNode }) {
       })
       .catch(() => {});
 
+    fetch("/api/game-stats")
+      .then((res) => res.json())
+      .then((data: Record<string, number>) => {
+        if (!cancelled) setRacerCounts(data);
+      })
+      .catch(() => {});
+
     return () => {
       cancelled = true;
     };
   }, []);
+
 
   const games = useMemo(() => {
     const search = query.trim().toLowerCase();
@@ -46,7 +62,7 @@ export function GamesBrowser({ banner }: { banner: ReactNode }) {
     list = list.slice();
 
     if (sort === "players") {
-      list.sort((a, b) => b.stats.racers - a.stats.racers);
+      list.sort((a, b) => racerCountFor(b, racerCounts) - racerCountFor(a, racerCounts));
     } else if (sort === "name") {
       list.sort((a, b) => a.name.localeCompare(b.name));
     } else {
@@ -54,7 +70,7 @@ export function GamesBrowser({ banner }: { banner: ReactNode }) {
     }
 
     return list;
-  }, [query, platform, sort]);
+  }, [query, platform, sort, racerCounts]);
 
   const gamesByGeneration = useMemo(() => {
     const byGeneration = new Map<number, typeof games>();
@@ -70,10 +86,10 @@ export function GamesBrowser({ banner }: { banner: ReactNode }) {
 
   const popular = useMemo(
     () =>
-      GAMES.filter((game) => game.stats.racers > 0).sort(
-        (a, b) => b.stats.racers - a.stats.racers,
+      GAMES.filter((game) => racerCountFor(game, racerCounts) > 0).sort(
+        (a, b) => racerCountFor(b, racerCounts) - racerCountFor(a, racerCounts),
       ),
-    [],
+    [racerCounts],
   );
 
   function handleRandom() {
@@ -204,8 +220,8 @@ export function GamesBrowser({ banner }: { banner: ReactNode }) {
                       <div className="game-tile__body">
                         <div className="game-tile__title">{game.name}</div>
                         <div className="game-tile__meta">
-                          {game.stats.racers > 0
-                            ? `${game.stats.racers} active racers`
+                          {racerCountFor(game, racerCounts) > 0
+                            ? `${racerCountFor(game, racerCounts)} active racers`
                             : "No runs yet"}
                         </div>
                         <div className="game-tile__tags">
@@ -260,7 +276,7 @@ export function GamesBrowser({ banner }: { banner: ReactNode }) {
                   </span>
                   <span className="games-popular__name">{game.name}</span>
                   <span className="games-popular__count">
-                    {game.stats.racers}
+                    {racerCountFor(game, racerCounts)}
                   </span>
                 </Link>
               ))}

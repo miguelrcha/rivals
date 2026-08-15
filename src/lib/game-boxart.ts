@@ -22,6 +22,7 @@ const SWITCH_ERA_SLUGS = [
   "pokemon-legends-arceus",
   "pokemon-scarlet",
   "pokemon-violet",
+  "pokemon-legends-za",
 ];
 
 function localBoxart(): Record<string, string> {

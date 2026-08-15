@@ -5,9 +5,12 @@ import { notFound } from "next/navigation";
 import { PixelArt } from "@/components/PixelArt";
 import { STATIC_CLUSTER_A, STATIC_CLUSTER_B } from "@/components/pixel-patterns";
 import { SetActiveGameButton } from "@/components/dashboard/SetActiveGameButton";
+import type { PartyPokemon } from "@/lib/pokemon-saves/firered";
 import { ActiveRunsPanel } from "@/components/dashboard/ActiveRunsPanel";
+import { GameTabs } from "@/components/games/GameTabs";
 import { getGameBySlug } from "@/lib/games";
 import { GAME_BOXART } from "@/lib/game-boxart";
+import { emulatorsForPlatform, getEmulatorIcons } from "@/lib/emulators";
 import { createClient } from "@/lib/supabase/server";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -30,6 +33,11 @@ export default async function GamePage({ params }: Props) {
   }
 
   const coverUrl = GAME_BOXART[game.slug];
+  const emulatorIcons = getEmulatorIcons();
+  const emulators = emulatorsForPlatform(game.platform).map((emulator) => ({
+    ...emulator,
+    icon: emulatorIcons[emulator.id] ?? null,
+  }));
 
   const supabase = await createClient();
   const {
@@ -39,16 +47,36 @@ export default async function GamePage({ params }: Props) {
   let activeGameSlug: string | null = null;
   let activeGameProgress = 0;
   let activeGameSyncCount = 0;
+  let activeGameParty: PartyPokemon[] = [];
   let existingRomFilename: string | null = null;
+  let currentUserProfile: {
+    username: string;
+    displayName: string;
+    avatarColor: string;
+    avatarInitial: string;
+    avatarUrl: string | null;
+  } | null = null;
   if (user) {
     const { data } = await supabase
       .from("profiles")
-      .select("active_game_slug, active_game_progress, active_game_sync_count")
+      .select(
+        "username, display_name, avatar_color, avatar_initial, avatar_url, active_game_slug, active_game_progress, active_game_sync_count, active_game_party",
+      )
       .eq("id", user.id)
       .single();
     activeGameSlug = data?.active_game_slug ?? null;
     activeGameProgress = data?.active_game_progress ?? 0;
     activeGameSyncCount = data?.active_game_sync_count ?? 0;
+    activeGameParty = (data?.active_game_party as PartyPokemon[] | null) ?? [];
+    if (data) {
+      currentUserProfile = {
+        username: data.username as string,
+        displayName: data.display_name as string,
+        avatarColor: data.avatar_color as string,
+        avatarInitial: data.avatar_initial as string,
+        avatarUrl: data.avatar_url as string | null,
+      };
+    }
 
     const { data: rom } = await supabase
       .from("game_roms")
@@ -62,7 +90,7 @@ export default async function GamePage({ params }: Props) {
   const { data: activeRunnerRows } = await supabase
     .from("profiles")
     .select(
-      "username, display_name, avatar_color, avatar_initial, avatar_url, active_game_progress, active_game_badges, active_game_pokedex_caught, active_game_playtime_seconds, active_game_sync_count",
+      "username, display_name, avatar_color, avatar_initial, avatar_url, last_active_at, active_game_progress, active_game_badges, active_game_pokedex_caught, active_game_playtime_seconds, active_game_sync_count, active_game_party",
     )
     .eq("active_game_slug", game.slug)
     .order("active_game_playtime_seconds", { ascending: false });
@@ -73,11 +101,13 @@ export default async function GamePage({ params }: Props) {
     avatarColor: row.avatar_color as string,
     avatarInitial: row.avatar_initial as string,
     avatarUrl: row.avatar_url as string | null,
+    lastActiveAt: row.last_active_at as string | null,
     progress: row.active_game_progress as number,
     badges: row.active_game_badges as number,
     pokedexCaught: row.active_game_pokedex_caught as number,
     playTimeSeconds: row.active_game_playtime_seconds as number,
     syncCount: row.active_game_sync_count as number,
+    party: (row.active_game_party as PartyPokemon[] | null) ?? [],
   }));
 
   const { data: gameRow } = await supabase
@@ -170,46 +200,44 @@ export default async function GamePage({ params }: Props) {
                 existingRomFilename={existingRomFilename}
                 initialProgress={activeGameProgress}
                 initialSyncCount={activeGameSyncCount}
+                initialParty={activeGameParty}
+                emulators={emulators}
               />
             )}
           </div>
         </div>
       </div>
 
-      <nav className="game-tabs" aria-label="Game sections">
-        <span className="game-tabs__item game-tabs__item--active">
-          Leaderboard
-        </span>
-        <span className="game-tabs__item">Levels</span>
-        <span className="game-tabs__item">News</span>
-        <span className="game-tabs__item">Guides</span>
-        <span className="game-tabs__item">Forums</span>
-      </nav>
+      <GameTabs
+        slug={game.slug}
+        userId={user?.id ?? null}
+        currentUserProfile={currentUserProfile}
+      >
+        <div className="dashboard-columns">
+          <ActiveRunsPanel runners={activeRunners} />
 
-      <div className="dashboard-columns">
-        <ActiveRunsPanel runners={activeRunners} />
-
-        <div className="dashboard-panel game-stats-panel">
-          <div className="dashboard-panel__header">
-            <span className="dashboard-panel__title">GAME STATS</span>
-          </div>
-
-          <div className="game-stats">
-            <div className="game-stats__item">
-              <div className="game-stats__value">{activeRunners.length}</div>
-              <div className="game-stats__label">Racers</div>
+          <div className="dashboard-panel game-stats-panel">
+            <div className="dashboard-panel__header">
+              <span className="dashboard-panel__title">GAME STATS</span>
             </div>
-            <div className="game-stats__item">
-              <div className="game-stats__value">{loggedRunsCount ?? 0}</div>
-              <div className="game-stats__label">Runs</div>
-            </div>
-            <div className="game-stats__item">
-              <div className="game-stats__value">{game.stats.categories}</div>
-              <div className="game-stats__label">Categories</div>
+
+            <div className="game-stats">
+              <div className="game-stats__item">
+                <div className="game-stats__value">{activeRunners.length}</div>
+                <div className="game-stats__label">Racers</div>
+              </div>
+              <div className="game-stats__item">
+                <div className="game-stats__value">{loggedRunsCount ?? 0}</div>
+                <div className="game-stats__label">Runs</div>
+              </div>
+              <div className="game-stats__item">
+                <div className="game-stats__value">{game.stats.categories}</div>
+                <div className="game-stats__label">Categories</div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </GameTabs>
     </>
   );
 }

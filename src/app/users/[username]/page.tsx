@@ -7,10 +7,12 @@ import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { AddFriendButton } from "@/components/profile/AddFriendButton";
 import { ClearActiveRunButton } from "@/components/profile/ClearActiveRunButton";
 import { RunDetailsButton } from "@/components/profile/RunDetailsButton";
+import type { PartyPokemon } from "@/lib/pokemon-saves/firered";
 import { createClient } from "@/lib/supabase/server";
 import { getGameBySlug } from "@/lib/games";
-import { formatElapsed } from "@/lib/format";
+import { formatElapsed, isOnline } from "@/lib/format";
 import { GAME_BOXART } from "@/lib/game-boxart";
+import { StatusDot } from "@/components/StatusDot";
 
 type Props = { params: Promise<{ username: string }> };
 
@@ -98,17 +100,20 @@ export default async function UserProfilePage({ params }: Props) {
       />
 
       <div className="profile-header">
-        <div
-          className="profile-header__avatar"
-          style={{ background: profile.avatar_color }}
-          aria-hidden="true"
-        >
-          {profile.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={profile.avatar_url} alt="" />
-          ) : (
-            profile.avatar_initial
-          )}
+        <div className="avatar-status">
+          <div
+            className="profile-header__avatar"
+            style={{ background: profile.avatar_color }}
+            aria-hidden="true"
+          >
+            {profile.avatar_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={profile.avatar_url} alt="" />
+            ) : (
+              profile.avatar_initial
+            )}
+          </div>
+          <StatusDot online={isOnline(profile.last_active_at)} />
         </div>
 
         <div className="profile-header__meta">
@@ -216,6 +221,10 @@ export default async function UserProfilePage({ params }: Props) {
                       pokedexCaught={profile.active_game_pokedex_caught ?? 0}
                       playTimeSeconds={
                         profile.active_game_playtime_seconds ?? 0
+                      }
+                      party={
+                        (profile.active_game_party as PartyPokemon[] | null) ??
+                        []
                       }
                     />
                   )}

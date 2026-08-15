@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { KANTO_BADGE_NAMES } from "@/lib/pokemon-saves/firered";
+import { KANTO_BADGE_NAMES, type PartyPokemon } from "@/lib/pokemon-saves/firered";
 import { formatElapsed } from "@/lib/format";
+import { PokemonTeam } from "@/components/PokemonTeam";
 
 type Props = {
   gameName: string;
@@ -10,6 +11,7 @@ type Props = {
   badgeNames: string[];
   pokedexCaught: number;
   playTimeSeconds: number;
+  party: PartyPokemon[];
 };
 
 export function RunDetailsButton({
@@ -18,6 +20,7 @@ export function RunDetailsButton({
   badgeNames,
   pokedexCaught,
   playTimeSeconds,
+  party,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const earned = new Set(badgeNames);
@@ -38,58 +41,52 @@ export function RunDetailsButton({
           onClick={() => setIsOpen(false)}
         >
           <div
-            className="import-modal trainer-card-modal"
+            className="import-modal"
             onClick={(event) => event.stopPropagation()}
           >
-            <button
-              type="button"
-              className="import-modal__close trainer-card__close"
-              onClick={() => setIsOpen(false)}
-              aria-label="Close"
-            >
-              ✕
-            </button>
+            <div className="import-modal__header">
+              <span className="import-modal__title">Trainer Card</span>
+              <button
+                type="button"
+                className="import-modal__close"
+                onClick={() => setIsOpen(false)}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
 
             <div className="trainer-card">
               <div className="trainer-card__header">
-                <span className="trainer-card__title">Trainer Card</span>
                 <span className="trainer-card__game-pill">{gameName}</span>
               </div>
 
-              <div className="trainer-card__body">
-                <div className="trainer-card__fields">
-                  <div className="trainer-card__row">
-                    <span className="trainer-card__label">
-                      <span className="trainer-card__bullet" /> Name
-                    </span>
-                    <span className="trainer-card__value">
-                      {playerName || "?????"}
-                    </span>
-                  </div>
-
-                  <div className="trainer-card__row">
-                    <span className="trainer-card__label">
-                      <span className="trainer-card__bullet" /> Pokédex
-                    </span>
-                    <span className="trainer-card__value">
-                      {pokedexCaught}/386
-                    </span>
-                  </div>
-
-                  <div className="trainer-card__row">
-                    <span className="trainer-card__label">
-                      <span className="trainer-card__bullet" /> Time
-                    </span>
-                    <span className="trainer-card__value">
-                      {formatElapsed(playTimeSeconds * 1000)}
-                    </span>
-                  </div>
+              <div className="trainer-card__fields">
+                <div className="trainer-card__row">
+                  <span className="trainer-card__label">
+                    <span className="trainer-card__bullet" /> Name
+                  </span>
+                  <span className="trainer-card__value">
+                    {playerName || "?????"}
+                  </span>
                 </div>
 
-                <div className="trainer-card__silhouette" aria-hidden="true">
-                  <span className="trainer-card__silhouette-cap" />
-                  <span className="trainer-card__silhouette-head" />
-                  <span className="trainer-card__silhouette-body" />
+                <div className="trainer-card__row">
+                  <span className="trainer-card__label">
+                    <span className="trainer-card__bullet" /> Pokédex
+                  </span>
+                  <span className="trainer-card__value">
+                    {pokedexCaught}/386
+                  </span>
+                </div>
+
+                <div className="trainer-card__row">
+                  <span className="trainer-card__label">
+                    <span className="trainer-card__bullet" /> Time
+                  </span>
+                  <span className="trainer-card__value">
+                    {formatElapsed(playTimeSeconds * 1000)}
+                  </span>
                 </div>
               </div>
 
@@ -110,9 +107,7 @@ export function RunDetailsButton({
               </div>
             </div>
 
-            <p className="import-modal__hint trainer-card__team-note">
-              Current team: coming soon.
-            </p>
+            <PokemonTeam party={party} />
           </div>
         </div>
       )}

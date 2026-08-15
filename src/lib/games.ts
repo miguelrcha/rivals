@@ -475,6 +475,18 @@ export const GAMES: Game[] = [
     description: "Scarlet's counterpart, same open Paldea.",
     stats: { racers: 0, runs: 0, categories: 2 },
   },
+  {
+    slug: "pokemon-legends-za",
+    name: "Pokémon Legends: Z-A",
+    shortName: "Z-A",
+    color: "#1c1c2e",
+    platform: "Nintendo Switch",
+    generation: 9,
+    releaseYear: 2025,
+    categories: ["Any%"],
+    description: "Lumiose City reimagined — Mega Evolution takes center stage in real time.",
+    stats: { racers: 0, runs: 0, categories: 1 },
+  },
 ];
 
 export function getGameBySlug(slug: string): Game | undefined {

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { isOnline } from "@/lib/format";
+import { StatusDot } from "@/components/StatusDot";
 
 type ProfileSummary = {
   id: string;
@@ -11,6 +13,7 @@ type ProfileSummary = {
   avatar_color: string;
   avatar_initial: string;
   avatar_url: string | null;
+  last_active_at: string | null;
 };
 
 type FriendEntry = {
@@ -50,7 +53,9 @@ export function FriendsBoard({
 
     const { data: profile, error: lookupError } = await supabase
       .from("profiles")
-      .select("id, username, display_name, avatar_color, avatar_initial, avatar_url")
+      .select(
+        "id, username, display_name, avatar_color, avatar_initial, avatar_url, last_active_at",
+      )
       .eq("username", target)
       .maybeSingle();
 
@@ -267,17 +272,20 @@ export function FriendsBoard({
 function FriendIdentity({ profile }: { profile: ProfileSummary }) {
   return (
     <Link href={`/users/${profile.username}`} className="friend-row__identity">
-      <div
-        className="friend-row__avatar"
-        style={{ background: profile.avatar_color }}
-        aria-hidden="true"
-      >
-        {profile.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={profile.avatar_url} alt="" />
-        ) : (
-          profile.avatar_initial
-        )}
+      <div className="avatar-status">
+        <div
+          className="friend-row__avatar"
+          style={{ background: profile.avatar_color }}
+          aria-hidden="true"
+        >
+          {profile.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={profile.avatar_url} alt="" />
+          ) : (
+            profile.avatar_initial
+          )}
+        </div>
+        <StatusDot online={isOnline(profile.last_active_at)} />
       </div>
       <div className="friend-row__names">
         <span className="friend-row__display-name">

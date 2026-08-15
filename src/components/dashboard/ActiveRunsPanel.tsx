@@ -1,7 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { formatElapsed } from "@/lib/format";
+import { formatElapsed, isOnline } from "@/lib/format";
+import { PokemonTeam } from "@/components/PokemonTeam";
+import { StatusDot } from "@/components/StatusDot";
+import type { PartyPokemon } from "@/lib/pokemon-saves/firered";
 
 type Runner = {
   username: string;
@@ -9,11 +13,13 @@ type Runner = {
   avatarColor: string;
   avatarInitial: string;
   avatarUrl: string | null;
+  lastActiveAt: string | null;
   progress: number;
   badges: number;
   pokedexCaught: number;
   playTimeSeconds: number;
   syncCount: number;
+  party: PartyPokemon[];
 };
 
 type Props = {
@@ -21,6 +27,12 @@ type Props = {
 };
 
 export function ActiveRunsPanel({ runners }: Props) {
+  const [teamPopupUsername, setTeamPopupUsername] = useState<string | null>(
+    null,
+  );
+  const popupRunner =
+    runners.find((runner) => runner.username === teamPopupUsername) ?? null;
+
   return (
     <div className="dashboard-panel active-runs-panel">
       <div className="dashboard-panel__header">
@@ -43,27 +55,32 @@ export function ActiveRunsPanel({ runners }: Props) {
             <span>Progress</span>
           </div>
           {runners.map((runner) => (
-            <Link
-              href={`/users/${runner.username}`}
-              className="active-runs__row"
-              key={runner.username}
-            >
+            <div className="active-runs__row" key={runner.username}>
               <div className="active-runs__row-main">
-                <span className="active-runs__racer">
-                  <span
-                    className="active-runs__avatar"
-                    style={{ background: runner.avatarColor }}
-                    aria-hidden="true"
-                  >
-                    {runner.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={runner.avatarUrl} alt="" />
-                    ) : (
-                      runner.avatarInitial
-                    )}
+                <Link
+                  href={`/users/${runner.username}`}
+                  className="active-runs__racer"
+                >
+                  <span className="avatar-status">
+                    <span
+                      className="active-runs__avatar"
+                      style={{ background: runner.avatarColor }}
+                      aria-hidden="true"
+                    >
+                      {runner.avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={runner.avatarUrl} alt="" />
+                      ) : (
+                        runner.avatarInitial
+                      )}
+                    </span>
+                    <StatusDot
+                      online={isOnline(runner.lastActiveAt)}
+                      size="sm"
+                    />
                   </span>
                   {runner.displayName}
-                </span>
+                </Link>
                 <span className="active-runs__time">
                   {runner.syncCount > 0
                     ? formatElapsed(runner.playTimeSeconds * 1000)
@@ -87,8 +104,46 @@ export function ActiveRunsPanel({ runners }: Props) {
                   played
                 </p>
               )}
-            </Link>
+
+              {runner.party.length > 0 && (
+                <button
+                  type="button"
+                  className="active-runs__team-btn"
+                  onClick={() => setTeamPopupUsername(runner.username)}
+                >
+                  View team
+                </button>
+              )}
+            </div>
           ))}
+        </div>
+      )}
+
+      {popupRunner && (
+        <div
+          className="import-modal-overlay"
+          onClick={() => setTeamPopupUsername(null)}
+        >
+          <div
+            className="import-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="import-modal__header">
+              <span className="import-modal__title">
+                {popupRunner.displayName}&apos;s team
+              </span>
+              <button
+                type="button"
+                className="import-modal__close"
+                onClick={() => setTeamPopupUsername(null)}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <PokemonTeam party={popupRunner.party} />
+          </div>
         </div>
       )}
     </div>
